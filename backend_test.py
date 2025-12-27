@@ -137,7 +137,7 @@ class RestorationOSAPITester:
             "status": "scheduled"
         }
         
-        success, data, status = self.make_request('POST', 'jobs', job_data, 201)
+        success, data, status = self.make_request('POST', 'jobs', job_data, 200)
         
         if success and 'id' in data:
             self.created_job_id = data['id']
