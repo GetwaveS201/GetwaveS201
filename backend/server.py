@@ -721,6 +721,143 @@ async def get_job_logs(job_id: str, current_user: dict = Depends(get_current_use
     logs = await db.job_logs.find({"job_id": job_id}, {"_id": 0}).to_list(1000)
     return [JobLogResponse(**log) for log in logs]
 
+@api_router.delete("/job-logs/{log_id}")
+async def delete_job_log(log_id: str, current_user: dict = Depends(get_current_user)):
+    await db.job_logs.delete_one({"id": log_id})
+    await db.photos.delete_one({"id": log_id})
+    return {"message": "Log deleted"}
+
+# ============ PHOTOS ROUTES ============
+
+@api_router.post("/jobs/{job_id}/photos")
+async def upload_job_photo(job_id: str, photo_data: str = Form(...), caption: str = Form(""), current_user: dict = Depends(get_current_user)):
+    photo_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    photo_doc = {
+        "id": photo_id,
+        "job_id": job_id,
+        "data": photo_data,
+        "caption": caption,
+        "created_by": current_user["name"],
+        "created_at": now
+    }
+    await db.job_photos.insert_one(photo_doc)
+    return {"id": photo_id, "message": "Photo uploaded"}
+
+@api_router.get("/jobs/{job_id}/photos")
+async def get_job_photos(job_id: str, current_user: dict = Depends(get_current_user)):
+    photos = await db.job_photos.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    return photos
+
+@api_router.delete("/photos/{photo_id}")
+async def delete_photo(photo_id: str, current_user: dict = Depends(get_current_user)):
+    await db.job_photos.delete_one({"id": photo_id})
+    return {"message": "Photo deleted"}
+
+# ============ JOB DETAILS ROUTES ============
+
+@api_router.get("/jobs/{job_id}/details")
+async def get_job_details(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Get comprehensive job details including related data"""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get related data
+    crew = None
+    if job.get("assigned_crew_id"):
+        crew = await db.crews.find_one({"id": job["assigned_crew_id"]}, {"_id": 0})
+    
+    invoices = await db.invoices.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    work_orders = await db.work_orders.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    expenses = await db.expenses.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    logs = await db.job_logs.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    photos = await db.job_photos.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    
+    # Calculate job costing
+    total_expenses = sum(exp.get("amount", 0) for exp in expenses)
+    total_invoiced = sum(inv.get("total", 0) for inv in invoices)
+    total_paid = sum(inv.get("total", 0) for inv in invoices if inv.get("status") == "paid")
+    
+    expense_breakdown = {}
+    for exp in expenses:
+        cat = exp.get("category", "other")
+        expense_breakdown[cat] = expense_breakdown.get(cat, 0) + exp.get("amount", 0)
+    
+    return {
+        "job": job,
+        "crew": crew,
+        "invoices": invoices,
+        "work_orders": work_orders,
+        "expenses": expenses,
+        "logs": sorted(logs, key=lambda x: x.get("created_at", ""), reverse=True),
+        "photos": photos,
+        "costing": {
+            "total_expenses": total_expenses,
+            "total_invoiced": total_invoiced,
+            "total_paid": total_paid,
+            "outstanding": total_invoiced - total_paid,
+            "profit_margin": total_paid - total_expenses,
+            "expense_breakdown": expense_breakdown
+        }
+    }
+
+@api_router.post("/jobs/{job_id}/line-items")
+async def add_job_line_item(job_id: str, item: JobLineItem, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    line_items = job.get("line_items", [])
+    line_items.append(item.model_dump())
+    
+    total = sum(i["quantity"] * i["unit_price"] for i in line_items)
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": {"line_items": line_items, "total_amount": total, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Line item added", "total_amount": total}
+
+@api_router.delete("/jobs/{job_id}/line-items/{item_index}")
+async def delete_job_line_item(job_id: str, item_index: int, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    line_items = job.get("line_items", [])
+    if 0 <= item_index < len(line_items):
+        line_items.pop(item_index)
+    
+    total = sum(i["quantity"] * i["unit_price"] for i in line_items)
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": {"line_items": line_items, "total_amount": total, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Line item deleted", "total_amount": total}
+
+@api_router.post("/jobs/{job_id}/expenses")
+async def add_job_expense(job_id: str, expense_data: ExpenseCreate, current_user: dict = Depends(get_current_user)):
+    """Add an expense directly linked to a job"""
+    expense_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    expense_doc = {
+        "id": expense_id,
+        **expense_data.model_dump(),
+        "job_id": job_id,
+        "status": "pending",
+        "created_at": now,
+        "created_by": current_user["id"]
+    }
+    if "receipt_data" in expense_doc:
+        del expense_doc["receipt_data"]
+    
+    await db.expenses.insert_one(expense_doc)
+    return ExpenseResponse(**expense_doc)
+
 # ============ TRANSACTIONS ROUTES ============
 
 @api_router.post("/transactions", response_model=TransactionResponse)
