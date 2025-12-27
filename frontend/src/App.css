@@ -1,34 +1,112 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* RestorationOS Styles */
+
+.sidebar {
+    background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+.sidebar-link {
+    @apply flex items-center gap-3 px-4 py-3 text-slate-300 rounded-md transition-all duration-200;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.sidebar-link:hover {
+    @apply bg-white/10 text-white;
 }
 
-.App-link {
-    color: #61dafb;
+.sidebar-link.active {
+    @apply bg-orange-500/20 text-orange-400 border-l-2 border-orange-500;
 }
 
-@keyframes App-logo-spin {
+.status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.status-pending {
+    @apply bg-yellow-100 text-yellow-800;
+}
+
+.status-scheduled {
+    @apply bg-blue-100 text-blue-800;
+}
+
+.status-in_progress {
+    @apply bg-orange-100 text-orange-800;
+}
+
+.status-completed {
+    @apply bg-green-100 text-green-800;
+}
+
+.status-cancelled {
+    @apply bg-red-100 text-red-800;
+}
+
+.priority-low {
+    @apply bg-slate-100 text-slate-600;
+}
+
+.priority-medium {
+    @apply bg-blue-100 text-blue-700;
+}
+
+.priority-high {
+    @apply bg-orange-100 text-orange-700;
+}
+
+.priority-urgent {
+    @apply bg-red-100 text-red-700;
+}
+
+.data-table {
+    @apply w-full text-sm;
+}
+
+.data-table th {
+    @apply h-12 px-4 text-left font-medium text-slate-500 bg-slate-50;
+}
+
+.data-table td {
+    @apply p-4 border-b border-slate-100;
+}
+
+.data-table tr:hover {
+    @apply bg-slate-50/50;
+}
+
+.btn-primary {
+    @apply bg-slate-900 text-white hover:bg-slate-800 h-10 px-6 rounded-md font-medium shadow-sm transition-colors;
+}
+
+.btn-accent {
+    @apply bg-orange-500 text-white hover:bg-orange-600 h-10 px-6 rounded-md font-medium shadow-md transition-colors;
+}
+
+.btn-secondary {
+    @apply bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 h-10 px-6 rounded-md font-medium transition-colors;
+}
+
+.input-field {
+    @apply h-10 bg-white border border-slate-200 focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 rounded-md px-3 w-full transition-all;
+}
+
+.page-title {
+    @apply text-2xl font-bold text-slate-900 tracking-tight;
+}
+
+.section-title {
+    @apply text-lg font-semibold text-slate-900;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
     from {
-        transform: rotate(0deg);
+        opacity: 0;
+        transform: translateY(10px);
     }
     to {
-        transform: rotate(360deg);
+        opacity: 1;
+        transform: translateY(0);
     }
 }
