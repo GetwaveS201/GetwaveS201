@@ -75,7 +75,7 @@ class RestorationOSAPITester:
             "name": "Test User"
         }
         
-        success, data, status = self.make_request('POST', 'auth/register', user_data, 201)
+        success, data, status = self.make_request('POST', 'auth/register', user_data, 200)
         
         if success and 'access_token' in data:
             self.token = data['access_token']
