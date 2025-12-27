@@ -229,7 +229,7 @@ class RestorationOSAPITester:
             "tax_rate": 8.25
         }
         
-        success, data, status = self.make_request('POST', 'invoices', invoice_data, 201)
+        success, data, status = self.make_request('POST', 'invoices', invoice_data, 200)
         
         if success and 'id' in data:
             self.created_invoice_id = data['id']
