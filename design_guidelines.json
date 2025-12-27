@@ -1,0 +1,154 @@
+{
+  "identity": {
+    "name": "RestorationOS",
+    "persona": "E1 - The Anti-AI Designer",
+    "archetype": "Industrial Clean (Swiss + High-Contrast)",
+    "emotional_tone": "Authoritative, Efficient, Reliable, Structured",
+    "visual_mood": "High-contrast, data-dense, professional, safety-oriented"
+  },
+  "typography": {
+    "headings": {
+      "family": "Manrope, sans-serif",
+      "weights": ["600", "700", "800"],
+      "usage": "Use for all page titles, section headers, and metric values. Tight tracking (-0.02em)."
+    },
+    "body": {
+      "family": "DM Sans, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "Use for all standard text, labels, and table data. Normal tracking."
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Use for invoice numbers, transaction IDs, and code snippets."
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "DEFAULT": "#0F172A",
+        "foreground": "#F8FAFC",
+        "description": "Deep Navy - Authority & Trust"
+      },
+      "secondary": {
+        "DEFAULT": "#F1F5F9",
+        "foreground": "#0F172A",
+        "description": "Slate 100 - Backgrounds & Muted Elements"
+      },
+      "accent": {
+        "DEFAULT": "#F97316",
+        "foreground": "#FFFFFF",
+        "description": "Safety Orange - Actions, Alerts, Highlights"
+      },
+      "background": "#FFFFFF",
+      "foreground": "#0F172A",
+      "muted": "#64748B",
+      "border": "#E2E8F0",
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444",
+      "info": "#3B82F6"
+    },
+    "gradients": {
+      "primary_gradient": "linear-gradient(135deg, #0F172A 0%, #1E293B 100%)",
+      "accent_gradient": "linear-gradient(135deg, #F97316 0%, #FB923C 100%)"
+    }
+  },
+  "layout": {
+    "spacing_scale": "Generous (2x standard). Use p-6, p-8, p-12 for containers.",
+    "grid_system": {
+      "dashboard": "Control Room Grid (Dense, 4-col)",
+      "marketing": "Tetris Grid (Asymmetric, 12-col)",
+      "mobile": "Single Column (Stack)"
+    },
+    "container_styles": {
+      "card": "bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200",
+      "panel": "bg-slate-50 border border-slate-200",
+      "glass": "bg-white/80 backdrop-blur-md border border-white/20 shadow-lg"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-6 rounded-md font-medium shadow-sm",
+      "secondary": "bg-white text-primary border border-slate-200 hover:bg-slate-50 h-10 px-6 rounded-md font-medium",
+      "accent": "bg-accent text-accent-foreground hover:bg-accent/90 h-10 px-6 rounded-md font-medium shadow-md",
+      "ghost": "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
+    },
+    "inputs": {
+      "default": "h-10 bg-white border-slate-200 focus:ring-2 focus:ring-primary/20 focus:border-primary rounded-md",
+      "filled": "h-10 bg-slate-50 border-transparent focus:bg-white focus:border-primary rounded-md"
+    },
+    "cards": {
+      "metric": "p-6 bg-white border border-slate-100 shadow-sm rounded-lg flex flex-col justify-between hover:border-slate-300 transition-colors",
+      "job": "p-0 bg-white border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+    },
+    "tables": {
+      "style": "w-full caption-bottom text-sm",
+      "header": "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "row": "border-b transition-colors hover:bg-slate-50/50 data-[state=selected]:bg-slate-50",
+      "cell": "p-4 align-middle [&:has([role=checkbox])]:pr-0"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "soft": "0 2px 10px rgba(0,0,0,0.03)",
+      "medium": "0 4px 20px rgba(0,0,0,0.06)",
+      "hard": "4px 4px 0px rgba(15, 23, 42, 1)"
+    },
+    "borders": {
+      "subtle": "1px solid #E2E8F0",
+      "active": "1px solid #0F172A",
+      "accent": "2px solid #F97316"
+    },
+    "radius": {
+      "default": "0.5rem",
+      "large": "0.75rem",
+      "pill": "9999px"
+    }
+  },
+  "assets": {
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px for UI, 2px for active states"
+    },
+    "images": {
+      "crew_profiles": [
+        "https://images.unsplash.com/photo-1672748341520-6a839e6c05bb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxjb25zdHJ1Y3Rpb24lMjB3b3JrZXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjY4MDExNDh8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1646227655718-dd721b681d91?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxjb25zdHJ1Y3Rpb24lMjB3b3JrZXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjY4MDExNDh8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1646227655588-b44f246c04fb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwzfHxjb25zdHJ1Y3Rpb24lMjB3b3JrZXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjY4MDExNDh8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1646227655685-a530813759b3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHw0fHxjb25zdHJ1Y3Rpb24lMjB3b3JrZXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjY4MDExNDh8MA&ixlib=rb-4.1.0&q=85"
+      ],
+      "job_sites": [
+        "https://images.unsplash.com/photo-1639166266134-67b7e7477383?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwxfHxob3VzZSUyMHdhdGVyJTIwZGFtYWdlJTIwcmVzdG9yYXRpb258ZW58MHx8fHwxNzY2ODc0NTI5fDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1593933955275-e17bb8d011ea?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwyfHxob3VzZSUyMHdhdGVyJTIwZGFtYWdlJTIwcmVzdG9yYXRpb258ZW58MHx8fHwxNzY2ODc0NTI5fDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1715043641774-b721ab323c9f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwzfHxob3VzZSUyMHdhdGVyJTIwZGFtYWdlJTIwcmVzdG9yYXRpb258ZW58MHx8fHwxNzY2ODc0NTI5fDA&ixlib=rb-4.1.0&q=85"
+      ],
+      "equipment": [
+        "https://images.unsplash.com/photo-1756402664856-91a90f90b70b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxjb25zdHJ1Y3Rpb24lMjB0b29scyUyMGVxdWlwbWVudHxlbnwwfHx8fDE3NjY4NzQ1MzJ8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1687066564067-16502e255660?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxjb25zdHJ1Y3Rpb24lMjB0b29scyUyMGVxdWlwbWVudHxlbnwwfHx8fDE3NjY4NzQ1MzJ8MA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1728362369426-1647a7fd09d7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHw0fHxjb25zdHJ1Y3Rpb24lMjB0b29scyUyMGVxdWlwbWVudHxlbnwwfHx8fDE3NjY4NzQ1MzJ8MA&ixlib=rb-4.1.0&q=85"
+      ]
+    }
+  },
+  "instructions_to_main_agent": [
+    "IMPLEMENTATION: Use 'Manrope' for all headings and 'DM Sans' for body text. Import them via Google Fonts in index.css.",
+    "THEME: Default to Light Mode. Use the 'Industrial Clean' palette. Primary is #0F172A, Accent is #F97316.",
+    "LAYOUT: Use the 'Control Room' grid for the main dashboard. High density, but with clear whitespace (p-6) inside containers.",
+    "COMPONENTS: Customize Shadcn components to match the 'Industrial Clean' look. Remove excessive rounding (use rounded-md or rounded-sm).",
+    "NAVIGATION: Create a sidebar navigation for desktop with clear icons (Lucide) and a bottom navigation for mobile.",
+    "DATA: Use Recharts for all charts. Style them with the primary and accent colors.",
+    "INTERACTIONS: Add hover states to all interactive elements. Use 'transform hover:-translate-y-1' for cards.",
+    "ACCESSIBILITY: Ensure all text meets WCAG AA contrast ratios. Use 'data-testid' for all interactive elements.",
+    "IMAGES: Use the provided image URLs for crew profiles, job sites, and equipment. Do NOT use placeholders.",
+    "TOASTS: Use 'sonner' for notifications.",
+    "FORBIDDEN: Do not use gradients for backgrounds. Use solid colors or subtle patterns.",
+    "FORBIDDEN: Do not use 'Inter' font. Use 'DM Sans' instead."
+  ],
+  "universal_guidelines": [
+    "Avoid 'AI slop' aesthetic. Make it look like a premium, custom-built tool.",
+    "Use 2-3x more spacing than typical designs.",
+    "Every interaction needs micro-animations.",
+    "Use 'sonner' for toasts.",
+    "Components MUST use named exports.",
+    "Pages MUST use default exports."
+  ]
+}
