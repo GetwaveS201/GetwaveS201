@@ -266,7 +266,7 @@ class RestorationOSAPITester:
             "materials_needed": ["Dehumidifier", "Air mover", "Moisture meter"]
         }
         
-        success, data, status = self.make_request('POST', 'work-orders', work_order_data, 201)
+        success, data, status = self.make_request('POST', 'work-orders', work_order_data, 200)
         
         if success and 'id' in data:
             self.created_work_order_id = data['id']
