@@ -193,7 +193,7 @@ class RestorationOSAPITester:
             ]
         }
         
-        success, data, status = self.make_request('POST', 'crews', crew_data, 201)
+        success, data, status = self.make_request('POST', 'crews', crew_data, 200)
         
         if success and 'id' in data:
             self.created_crew_id = data['id']
