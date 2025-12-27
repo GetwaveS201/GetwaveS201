@@ -1,0 +1,142 @@
+{
+  "summary": {
+    "total_tests": 21,
+    "passed_tests": 13,
+    "success_rate": 61.904761904761905
+  },
+  "test_results": [
+    {
+      "test": "API Health Check",
+      "success": true,
+      "details": "API responded with status 200",
+      "error": ""
+    },
+    {
+      "test": "User Registration",
+      "success": true,
+      "details": "User already exists, logged in successfully",
+      "error": ""
+    },
+    {
+      "test": "Get User Profile",
+      "success": true,
+      "details": "Profile retrieved for test@restoration.com",
+      "error": ""
+    },
+    {
+      "test": "Create Job",
+      "success": false,
+      "details": "",
+      "error": "Job creation failed with status 200"
+    },
+    {
+      "test": "Get Jobs",
+      "success": true,
+      "details": "Retrieved 1 jobs",
+      "error": ""
+    },
+    {
+      "test": "Update Job",
+      "success": false,
+      "details": "",
+      "error": "No job ID available for update"
+    },
+    {
+      "test": "Create Crew",
+      "success": false,
+      "details": "",
+      "error": "Crew creation failed with status 200"
+    },
+    {
+      "test": "Get Crews",
+      "success": true,
+      "details": "Retrieved 1 crews",
+      "error": ""
+    },
+    {
+      "test": "Create Invoice",
+      "success": false,
+      "details": "",
+      "error": "No job ID available for invoice creation"
+    },
+    {
+      "test": "Get Invoices",
+      "success": true,
+      "details": "Retrieved 0 invoices",
+      "error": ""
+    },
+    {
+      "test": "Create Work Order",
+      "success": false,
+      "details": "",
+      "error": "No job ID available for work order creation"
+    },
+    {
+      "test": "Update Work Order Tasks",
+      "success": false,
+      "details": "",
+      "error": "No work order ID available"
+    },
+    {
+      "test": "Create Expense",
+      "success": false,
+      "details": "",
+      "error": "Expense creation failed with status 200"
+    },
+    {
+      "test": "Get Expenses",
+      "success": true,
+      "details": "Retrieved 1 expenses",
+      "error": ""
+    },
+    {
+      "test": "Dashboard Stats",
+      "success": true,
+      "details": "Dashboard loaded with 1 total jobs",
+      "error": ""
+    },
+    {
+      "test": "Profit & Loss Report",
+      "success": true,
+      "details": "Report generated with revenue: $0",
+      "error": ""
+    },
+    {
+      "test": "Tax Summary Report",
+      "success": true,
+      "details": "Tax report generated",
+      "error": ""
+    },
+    {
+      "test": "Cash Flow Forecast",
+      "success": true,
+      "details": "Forecast generated with 3 periods",
+      "error": ""
+    },
+    {
+      "test": "AI Message Generation",
+      "success": false,
+      "details": "",
+      "error": "No job ID available for AI message"
+    },
+    {
+      "test": "AI Compliance Check",
+      "success": true,
+      "details": "Compliance analysis completed",
+      "error": ""
+    },
+    {
+      "test": "AI Cash Flow Forecast",
+      "success": true,
+      "details": "AI cash flow analysis completed",
+      "error": ""
+    }
+  ],
+  "created_resources": {
+    "job_id": null,
+    "crew_id": null,
+    "invoice_id": null,
+    "work_order_id": null,
+    "expense_id": null
+  }
+}
