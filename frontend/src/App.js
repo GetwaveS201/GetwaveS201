@@ -1,13 +1,16 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
 import {
   LayoutDashboard, Briefcase, Users, FileText, ClipboardList,
   DollarSign, BarChart3, MessageSquare, LogOut, Menu, X,
   Plus, Search, ChevronRight, TrendingUp, TrendingDown,
-  Clock, CheckCircle2, AlertCircle, Download, Send, Brain
+  Clock, CheckCircle2, AlertCircle, Download, Send, Brain,
+  Camera, Trash2, Edit, ArrowLeft, MapPin, Phone, Mail,
+  Calendar, Tag, User, Image, FileImage, Receipt, PlusCircle,
+  ChevronDown, Eye, Printer
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
@@ -21,13 +24,14 @@ import { Textarea } from "./components/ui/textarea";
 import { ScrollArea } from "./components/ui/scroll-area";
 import { Progress } from "./components/ui/progress";
 import { Separator } from "./components/ui/separator";
+import { Avatar, AvatarFallback } from "./components/ui/avatar";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./components/ui/accordion";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 // Auth Context
 const AuthContext = createContext(null);
-
 const useAuth = () => useContext(AuthContext);
 
 const AuthProvider = ({ children }) => {
@@ -40,10 +44,7 @@ const AuthProvider = ({ children }) => {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       axios.get(`${API}/auth/me`)
         .then(res => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem("token");
-          setToken(null);
-        })
+        .catch(() => { localStorage.removeItem("token"); setToken(null); })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -82,7 +83,6 @@ const AuthProvider = ({ children }) => {
   );
 };
 
-// Protected Route
 const ProtectedRoute = ({ children }) => {
   const { token, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
@@ -120,13 +120,12 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               <p className="text-xs text-slate-400">Operations Hub</p>
             </div>
           </div>
-
           <nav className="flex-1 p-4 space-y-1">
             {navItems.map(item => (
               <button
                 key={item.path}
                 onClick={() => { navigate(item.path); setIsOpen(false); }}
-                className={`sidebar-link w-full text-left ${location.pathname === item.path ? 'active' : ''}`}
+                className={`sidebar-link w-full text-left ${location.pathname === item.path || (item.path === '/jobs' && location.pathname.startsWith('/jobs/')) ? 'active' : ''}`}
                 data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
               >
                 <item.icon className="w-5 h-5" />
@@ -134,7 +133,6 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               </button>
             ))}
           </nav>
-
           <div className="p-4 border-t border-white/10">
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white font-semibold text-sm">
@@ -151,16 +149,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           </div>
         </div>
       </div>
-
       {isOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setIsOpen(false)} />}
     </>
   );
 };
 
-// Layout Component
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
@@ -182,7 +177,7 @@ const Layout = ({ children }) => {
   );
 };
 
-// Auth Pages
+// Login Page
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -196,11 +191,8 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isRegister) {
-        await register(email, password, name);
-      } else {
-        await login(email, password);
-      }
+      if (isRegister) await register(email, password, name);
+      else await login(email, password);
       toast.success(isRegister ? "Account created!" : "Welcome back!");
       navigate("/");
     } catch (err) {
@@ -220,13 +212,10 @@ const LoginPage = () => {
           <h1 className="text-3xl font-bold text-white mb-2">RestorationOS</h1>
           <p className="text-slate-400">AI-Powered Operations Assistant</p>
         </div>
-
         <Card className="border-slate-800 bg-slate-800/50 backdrop-blur">
           <CardHeader>
             <CardTitle className="text-white">{isRegister ? "Create Account" : "Sign In"}</CardTitle>
-            <CardDescription className="text-slate-400">
-              {isRegister ? "Get started with RestorationOS" : "Welcome back to your dashboard"}
-            </CardDescription>
+            <CardDescription className="text-slate-400">{isRegister ? "Get started with RestorationOS" : "Welcome back to your dashboard"}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -264,11 +253,12 @@ const LoginPage = () => {
 const DashboardPage = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     axios.get(`${API}/reports/dashboard`)
       .then(res => setStats(res.data))
-      .catch(err => toast.error("Failed to load dashboard"))
+      .catch(() => toast.error("Failed to load dashboard"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -288,7 +278,7 @@ const DashboardPage = () => {
           <h1 className="page-title">Dashboard</h1>
           <p className="text-slate-500 mt-1">Welcome back! Here's your operations overview.</p>
         </div>
-        <Button className="btn-accent gap-2" onClick={() => window.location.href = '/jobs'} data-testid="new-job-btn">
+        <Button className="btn-accent gap-2" onClick={() => navigate('/jobs')} data-testid="new-job-btn">
           <Plus className="w-4 h-4" /> New Job
         </Button>
       </div>
@@ -318,7 +308,7 @@ const DashboardPage = () => {
             {stats?.recent_jobs?.length > 0 ? (
               <div className="space-y-3">
                 {stats.recent_jobs.map((job, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)}>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
                         <Briefcase className="w-5 h-5 text-slate-600" />
@@ -328,7 +318,10 @@ const DashboardPage = () => {
                         <p className="text-sm text-slate-500">{job.customer_name}</p>
                       </div>
                     </div>
-                    <Badge className={`status-${job.status}`}>{job.status}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`status-${job.status}`}>{job.status?.replace('_', ' ')}</Badge>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -371,20 +364,20 @@ const DashboardPage = () => {
   );
 };
 
-// Jobs Page
+// Jobs List Page
 const JobsPage = () => {
   const [jobs, setJobs] = useState([]);
   const [crews, setCrews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedJob, setSelectedJob] = useState(null);
   const [formData, setFormData] = useState({
     title: "", customer_name: "", customer_phone: "", customer_email: "",
     address: "", scope: "", priority: "medium", status: "pending",
-    assigned_crew_id: "", scheduled_date: "", notes: ""
+    assigned_crew_id: "", scheduled_date: "", estimated_completion: "", notes: ""
   });
+  const navigate = useNavigate();
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [jobsRes, crewsRes] = await Promise.all([
         axios.get(`${API}/jobs`),
@@ -397,64 +390,21 @@ const JobsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (selectedJob) {
-        await axios.put(`${API}/jobs/${selectedJob.id}`, formData);
-        toast.success("Job updated!");
-      } else {
-        await axios.post(`${API}/jobs`, formData);
-        toast.success("Job created!");
-      }
+      await axios.post(`${API}/jobs`, formData);
+      toast.success("Job created!");
       setDialogOpen(false);
       loadData();
-      resetForm();
+      setFormData({ title: "", customer_name: "", customer_phone: "", customer_email: "", address: "", scope: "", priority: "medium", status: "pending", assigned_crew_id: "", scheduled_date: "", estimated_completion: "", notes: "" });
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to save job");
+      toast.error(err.response?.data?.detail || "Failed to create job");
     }
-  };
-
-  const handleEdit = (job) => {
-    setSelectedJob(job);
-    setFormData({
-      title: job.title,
-      customer_name: job.customer_name,
-      customer_phone: job.customer_phone,
-      customer_email: job.customer_email || "",
-      address: job.address,
-      scope: job.scope,
-      priority: job.priority,
-      status: job.status,
-      assigned_crew_id: job.assigned_crew_id || "",
-      scheduled_date: job.scheduled_date || "",
-      notes: job.notes || ""
-    });
-    setDialogOpen(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this job?")) return;
-    try {
-      await axios.delete(`${API}/jobs/${id}`);
-      toast.success("Job deleted");
-      loadData();
-    } catch (err) {
-      toast.error("Failed to delete");
-    }
-  };
-
-  const resetForm = () => {
-    setSelectedJob(null);
-    setFormData({
-      title: "", customer_name: "", customer_phone: "", customer_email: "",
-      address: "", scope: "", priority: "medium", status: "pending",
-      assigned_crew_id: "", scheduled_date: "", notes: ""
-    });
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
@@ -466,7 +416,7 @@ const JobsPage = () => {
           <h1 className="page-title">Jobs</h1>
           <p className="text-slate-500 mt-1">Manage your restoration jobs</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="btn-accent gap-2" data-testid="create-job-btn">
               <Plus className="w-4 h-4" /> New Job
@@ -474,7 +424,7 @@ const JobsPage = () => {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{selectedJob ? "Edit Job" : "Create New Job"}</DialogTitle>
+              <DialogTitle>Create New Job</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -548,14 +498,18 @@ const JobsPage = () => {
                   <Label>Scheduled Date</Label>
                   <Input type="date" value={formData.scheduled_date} onChange={e => setFormData({...formData, scheduled_date: e.target.value})} data-testid="job-date-input" />
                 </div>
+                <div>
+                  <Label>Est. Completion</Label>
+                  <Input type="date" value={formData.estimated_completion} onChange={e => setFormData({...formData, estimated_completion: e.target.value})} />
+                </div>
               </div>
               <div>
                 <Label>Notes</Label>
                 <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Additional notes..." rows={2} data-testid="job-notes-input" />
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
-                <Button type="submit" className="btn-accent" data-testid="job-submit-btn">{selectedJob ? "Update" : "Create"} Job</Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" className="btn-accent" data-testid="job-submit-btn">Create Job</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -570,26 +524,36 @@ const JobsPage = () => {
       ) : (
         <div className="grid gap-4">
           {jobs.map(job => (
-            <Card key={job.id} className="card-hover" data-testid={`job-card-${job.id}`}>
+            <Card key={job.id} className="card-hover cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)} data-testid={`job-card-${job.id}`}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-semibold text-slate-900 truncate">{job.title}</h3>
                       <Badge className={`priority-${job.priority}`}>{job.priority}</Badge>
-                      <Badge className={`status-${job.status}`}>{job.status.replace('_', ' ')}</Badge>
+                      <Badge className={`status-${job.status}`}>{job.status?.replace('_', ' ')}</Badge>
                     </div>
-                    <p className="text-sm text-slate-600 mb-1">{job.customer_name} • {job.customer_phone}</p>
-                    <p className="text-sm text-slate-500">{job.address}</p>
+                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                      <span className="flex items-center gap-1"><User className="w-3 h-3" /> {job.customer_name}</span>
+                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {job.customer_phone}</span>
+                    </div>
+                    <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" /> {job.address}
+                    </p>
                     {job.scheduled_date && (
                       <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Scheduled: {job.scheduled_date}
+                        <Calendar className="w-3 h-3" /> Scheduled: {job.scheduled_date}
                       </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleEdit(job)} data-testid={`edit-job-${job.id}`}>Edit</Button>
-                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(job.id)} data-testid={`delete-job-${job.id}`}>Delete</Button>
+                    {job.total_amount > 0 && (
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-slate-900">${job.total_amount?.toLocaleString()}</p>
+                        <p className="text-xs text-slate-500">Total Value</p>
+                      </div>
+                    )}
+                    <ChevronRight className="w-5 h-5 text-slate-400" />
                   </div>
                 </div>
               </CardContent>
@@ -601,18 +565,946 @@ const JobsPage = () => {
   );
 };
 
-// Crews Page
+// Job Detail Page
+const JobDetailPage = () => {
+  const { jobId } = useParams();
+  const navigate = useNavigate();
+  const [jobData, setJobData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [crews, setCrews] = useState([]);
+  const [activeTab, setActiveTab] = useState("overview");
+  
+  // Dialogs
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [lineItemDialogOpen, setLineItemDialogOpen] = useState(false);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [workOrderDialogOpen, setWorkOrderDialogOpen] = useState(false);
+
+  // Form states
+  const [editForm, setEditForm] = useState({});
+  const [lineItemForm, setLineItemForm] = useState({ description: "", quantity: 1, unit: "each", unit_price: 0, item_type: "labor", is_taxable: true });
+  const [logForm, setLogForm] = useState({ entry_type: "note", content: "" });
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [photoFile, setPhotoFile] = useState(null);
+  const [expenseForm, setExpenseForm] = useState({ description: "", amount: 0, category: "materials", vendor: "", date: "", is_taxable: false });
+  const [invoiceForm, setInvoiceForm] = useState({ due_date: "", notes: "", tax_rate: 8.25 });
+  const [workOrderForm, setWorkOrderForm] = useState({ tasks: [], materials_needed: [], notes: "" });
+  const [newTask, setNewTask] = useState("");
+  const [newMaterial, setNewMaterial] = useState("");
+
+  const loadJobData = useCallback(async () => {
+    try {
+      const [detailsRes, crewsRes] = await Promise.all([
+        axios.get(`${API}/jobs/${jobId}/details`),
+        axios.get(`${API}/crews`)
+      ]);
+      setJobData(detailsRes.data);
+      setCrews(crewsRes.data);
+      setEditForm(detailsRes.data.job);
+    } catch (err) {
+      toast.error("Failed to load job details");
+      navigate('/jobs');
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId, navigate]);
+
+  useEffect(() => { loadJobData(); }, [loadJobData]);
+
+  const handleUpdateJob = async () => {
+    try {
+      await axios.put(`${API}/jobs/${jobId}`, editForm);
+      toast.success("Job updated!");
+      setEditDialogOpen(false);
+      loadJobData();
+    } catch (err) {
+      toast.error("Failed to update job");
+    }
+  };
+
+  const handleAddLineItem = async () => {
+    try {
+      await axios.post(`${API}/jobs/${jobId}/line-items`, { ...lineItemForm, quantity: parseFloat(lineItemForm.quantity), unit_price: parseFloat(lineItemForm.unit_price) });
+      toast.success("Line item added!");
+      setLineItemDialogOpen(false);
+      setLineItemForm({ description: "", quantity: 1, unit: "each", unit_price: 0, item_type: "labor", is_taxable: true });
+      loadJobData();
+    } catch (err) {
+      toast.error("Failed to add line item");
+    }
+  };
+
+  const handleDeleteLineItem = async (index) => {
+    if (!window.confirm("Delete this line item?")) return;
+    try {
+      await axios.delete(`${API}/jobs/${jobId}/line-items/${index}`);
+      toast.success("Line item deleted");
+      loadJobData();
+    } catch (err) {
+      toast.error("Failed to delete");
+    }
+  };
+
+  const handleAddLog = async () => {
+    try {
+      await axios.post(`${API}/job-logs`, { job_id: jobId, ...logForm });
+      toast.success("Log entry added!");
+      setLogDialogOpen(false);
+      setLogForm({ entry_type: "note", content: "" });
+      loadJobData();
+    } catch (err) {
+      toast.error("Failed to add log");
+    }
+  };
+
+  const handleUploadPhoto = async () => {
+    if (!photoFile) return toast.error("Please select a photo");
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const formData = new FormData();
+        formData.append('photo_data', reader.result);
+        formData.append('caption', photoCaption);
+        await axios.post(`${API}/jobs/${jobId}/photos`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        toast.success("Photo uploaded!");
+        setPhotoDialogOpen(false);
+        setPhotoFile(null);
+        setPhotoCaption("");
+        loadJobData();
+      };
+      reader.readAsDataURL(photoFile);
+    } catch (err) {
+      toast.error("Failed to upload photo");
+    }
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    if (!window.confirm("Delete this photo?")) return;
+    try {
+      await axios.delete(`${API}/photos/${photoId}`);
+      toast.success("Photo deleted");
+      loadJobData();
+    } catch (err) {
+      toast.error("Failed to delete photo");
+    }
+  };
+
+  const handleAddExpense = async () => {
+    try {
+      await axios.post(`${API}/jobs/${jobId}/expenses`, { ...expenseForm, amount: parseFloat(expenseForm.amount) });
+      toast.success("Expense added!");
+      setExpenseDialogOpen(false);
+      setExpenseForm({ description: "", amount: 0, category: "materials", vendor: "", date: "", is_taxable: false });
+      loadJobData();
+    } catch (err) {
+      toast.error("Failed to add expense");
+    }
+  };
+
+  const handleCreateInvoice = async () => {
+    try {
+      await axios.post(`${API}/invoices`, { job_id: jobId, ...invoiceForm, tax_rate: parseFloat(invoiceForm.tax_rate) });
+      toast.success("Invoice created!");
+      setInvoiceDialogOpen(false);
+      setInvoiceForm({ due_date: "", notes: "", tax_rate: 8.25 });
+      loadJobData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to create invoice");
+    }
+  };
+
+  const handleCreateWorkOrder = async () => {
+    try {
+      const payload = {
+        job_id: jobId,
+        tasks: workOrderForm.tasks.map(t => ({ description: t, is_completed: false })),
+        materials_needed: workOrderForm.materials_needed,
+        notes: workOrderForm.notes
+      };
+      await axios.post(`${API}/work-orders`, payload);
+      toast.success("Work order created!");
+      setWorkOrderDialogOpen(false);
+      setWorkOrderForm({ tasks: [], materials_needed: [], notes: "" });
+      loadJobData();
+    } catch (err) {
+      toast.error("Failed to create work order");
+    }
+  };
+
+  const handleDeleteJob = async () => {
+    if (!window.confirm("Are you sure you want to delete this job? This cannot be undone.")) return;
+    try {
+      await axios.delete(`${API}/jobs/${jobId}`);
+      toast.success("Job deleted");
+      navigate('/jobs');
+    } catch (err) {
+      toast.error("Failed to delete job");
+    }
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
+  if (!jobData) return null;
+
+  const { job, crew, invoices, work_orders, expenses, logs, photos, costing } = jobData;
+
+  return (
+    <div className="space-y-6 animate-fade-in" data-testid="job-detail-page">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/jobs')} data-testid="back-btn">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="page-title">{job.title}</h1>
+              <Badge className={`priority-${job.priority}`}>{job.priority}</Badge>
+              <Badge className={`status-${job.status}`}>{job.status?.replace('_', ' ')}</Badge>
+            </div>
+            <p className="text-slate-500">{job.customer_name} • {job.address}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2" data-testid="edit-job-btn">
+                <Edit className="w-4 h-4" /> Edit
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Job</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Job Title</Label>
+                    <Input value={editForm.title || ""} onChange={e => setEditForm({...editForm, title: e.target.value})} />
+                  </div>
+                  <div>
+                    <Label>Customer Name</Label>
+                    <Input value={editForm.customer_name || ""} onChange={e => setEditForm({...editForm, customer_name: e.target.value})} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Phone</Label>
+                    <Input value={editForm.customer_phone || ""} onChange={e => setEditForm({...editForm, customer_phone: e.target.value})} />
+                  </div>
+                  <div>
+                    <Label>Email</Label>
+                    <Input type="email" value={editForm.customer_email || ""} onChange={e => setEditForm({...editForm, customer_email: e.target.value})} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Address</Label>
+                  <Input value={editForm.address || ""} onChange={e => setEditForm({...editForm, address: e.target.value})} />
+                </div>
+                <div>
+                  <Label>Scope of Work</Label>
+                  <Textarea value={editForm.scope || ""} onChange={e => setEditForm({...editForm, scope: e.target.value})} rows={3} />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>Priority</Label>
+                    <Select value={editForm.priority} onValueChange={v => setEditForm({...editForm, priority: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Status</Label>
+                    <Select value={editForm.status} onValueChange={v => setEditForm({...editForm, status: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Assign Crew</Label>
+                    <Select value={editForm.assigned_crew_id || ""} onValueChange={v => setEditForm({...editForm, assigned_crew_id: v})}>
+                      <SelectTrigger><SelectValue placeholder="Select crew" /></SelectTrigger>
+                      <SelectContent>
+                        {crews.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Scheduled Date</Label>
+                    <Input type="date" value={editForm.scheduled_date || ""} onChange={e => setEditForm({...editForm, scheduled_date: e.target.value})} />
+                  </div>
+                  <div>
+                    <Label>Est. Completion</Label>
+                    <Input type="date" value={editForm.estimated_completion || ""} onChange={e => setEditForm({...editForm, estimated_completion: e.target.value})} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Notes</Label>
+                  <Textarea value={editForm.notes || ""} onChange={e => setEditForm({...editForm, notes: e.target.value})} rows={2} />
+                </div>
+              </div>
+              <DialogFooter className="flex justify-between">
+                <Button variant="destructive" onClick={handleDeleteJob} data-testid="delete-job-btn">Delete Job</Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleUpdateJob} data-testid="save-job-btn">Save Changes</Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Quick Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="metric-card">
+          <p className="text-sm text-slate-500">Job Value</p>
+          <p className="text-2xl font-bold text-slate-900">${(job.total_amount || 0).toLocaleString()}</p>
+        </Card>
+        <Card className="metric-card">
+          <p className="text-sm text-slate-500">Total Invoiced</p>
+          <p className="text-2xl font-bold text-blue-600">${(costing.total_invoiced || 0).toLocaleString()}</p>
+        </Card>
+        <Card className="metric-card">
+          <p className="text-sm text-slate-500">Total Expenses</p>
+          <p className="text-2xl font-bold text-red-600">${(costing.total_expenses || 0).toLocaleString()}</p>
+        </Card>
+        <Card className="metric-card">
+          <p className="text-sm text-slate-500">Profit/Loss</p>
+          <p className={`text-2xl font-bold ${costing.profit_margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            ${(costing.profit_margin || 0).toLocaleString()}
+          </p>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid grid-cols-6 w-full max-w-2xl">
+          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+          <TabsTrigger value="line-items" data-testid="tab-line-items">Line Items</TabsTrigger>
+          <TabsTrigger value="photos" data-testid="tab-photos">Photos</TabsTrigger>
+          <TabsTrigger value="logs" data-testid="tab-logs">Logs</TabsTrigger>
+          <TabsTrigger value="financials" data-testid="tab-financials">Financials</TabsTrigger>
+          <TabsTrigger value="documents" data-testid="tab-documents">Documents</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Customer Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span>{job.customer_name}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-slate-400" />
+                  <a href={`tel:${job.customer_phone}`} className="text-blue-600 hover:underline">{job.customer_phone}</a>
+                </div>
+                {job.customer_email && (
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                    <a href={`mailto:${job.customer_email}`} className="text-blue-600 hover:underline">{job.customer_email}</a>
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-4 h-4 text-slate-400" />
+                  <span>{job.address}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Job Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {job.scheduled_date && (
+                  <div className="flex items-center gap-3">
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                    <span>Scheduled: {job.scheduled_date}</span>
+                  </div>
+                )}
+                {job.estimated_completion && (
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    <span>Est. Completion: {job.estimated_completion}</span>
+                  </div>
+                )}
+                {crew && (
+                  <div className="flex items-center gap-3">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    <span>Crew: {crew.name} ({crew.members?.length || 0} members)</span>
+                  </div>
+                )}
+                <div className="pt-2">
+                  <Label className="text-slate-500 text-xs">Scope of Work</Label>
+                  <p className="mt-1 text-sm">{job.scope}</p>
+                </div>
+                {job.notes && (
+                  <div className="pt-2">
+                    <Label className="text-slate-500 text-xs">Notes</Label>
+                    <p className="mt-1 text-sm">{job.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Line Items Tab */}
+        <TabsContent value="line-items" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="section-title">Line Items</h3>
+            <Dialog open={lineItemDialogOpen} onOpenChange={setLineItemDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="btn-accent gap-2" data-testid="add-line-item-btn">
+                  <PlusCircle className="w-4 h-4" /> Add Item
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Line Item</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Description</Label>
+                    <Input value={lineItemForm.description} onChange={e => setLineItemForm({...lineItemForm, description: e.target.value})} placeholder="Labor - Water extraction" data-testid="line-item-description" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label>Quantity</Label>
+                      <Input type="number" value={lineItemForm.quantity} onChange={e => setLineItemForm({...lineItemForm, quantity: e.target.value})} data-testid="line-item-qty" />
+                    </div>
+                    <div>
+                      <Label>Unit</Label>
+                      <Select value={lineItemForm.unit} onValueChange={v => setLineItemForm({...lineItemForm, unit: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="each">Each</SelectItem>
+                          <SelectItem value="hour">Hour</SelectItem>
+                          <SelectItem value="sqft">Sq Ft</SelectItem>
+                          <SelectItem value="day">Day</SelectItem>
+                          <SelectItem value="lf">Linear Ft</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Unit Price</Label>
+                      <Input type="number" step="0.01" value={lineItemForm.unit_price} onChange={e => setLineItemForm({...lineItemForm, unit_price: e.target.value})} data-testid="line-item-price" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Type</Label>
+                      <Select value={lineItemForm.item_type} onValueChange={v => setLineItemForm({...lineItemForm, item_type: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="labor">Labor</SelectItem>
+                          <SelectItem value="equipment">Equipment</SelectItem>
+                          <SelectItem value="material">Material</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2 pt-6">
+                      <input type="checkbox" id="taxable" checked={lineItemForm.is_taxable} onChange={e => setLineItemForm({...lineItemForm, is_taxable: e.target.checked})} />
+                      <Label htmlFor="taxable">Taxable</Label>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setLineItemDialogOpen(false)}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleAddLineItem} data-testid="save-line-item-btn">Add Item</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <Card>
+            <CardContent className="p-0">
+              {job.line_items?.length > 0 ? (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Type</th>
+                      <th className="text-right">Qty</th>
+                      <th className="text-right">Unit Price</th>
+                      <th className="text-right">Total</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {job.line_items.map((item, idx) => (
+                      <tr key={idx}>
+                        <td>{item.description}</td>
+                        <td><Badge variant="outline" className="capitalize">{item.item_type}</Badge></td>
+                        <td className="text-right">{item.quantity} {item.unit}</td>
+                        <td className="text-right">${item.unit_price?.toFixed(2)}</td>
+                        <td className="text-right font-semibold">${(item.quantity * item.unit_price).toFixed(2)}</td>
+                        <td>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteLineItem(idx)} className="text-red-500 hover:text-red-700">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-50 font-semibold">
+                      <td colSpan={4} className="text-right">Total</td>
+                      <td className="text-right">${job.total_amount?.toFixed(2)}</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <Receipt className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                  <p>No line items yet. Add items to build your estimate.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Photos Tab */}
+        <TabsContent value="photos" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="section-title">Job Photos</h3>
+            <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="btn-accent gap-2" data-testid="upload-photo-btn">
+                  <Camera className="w-4 h-4" /> Upload Photo
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Upload Photo</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Select Photo</Label>
+                    <Input type="file" accept="image/*" onChange={e => setPhotoFile(e.target.files[0])} data-testid="photo-input" />
+                  </div>
+                  <div>
+                    <Label>Caption (optional)</Label>
+                    <Input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} placeholder="Before photo - kitchen damage" data-testid="photo-caption" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setPhotoDialogOpen(false)}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleUploadPhoto} data-testid="save-photo-btn">Upload</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {photos?.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {photos.map(photo => (
+                <Card key={photo.id} className="overflow-hidden group relative">
+                  <div className="aspect-square bg-slate-100">
+                    <img src={photo.data} alt={photo.caption || "Job photo"} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button variant="secondary" size="icon" onClick={() => window.open(photo.data, '_blank')}>
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={() => handleDeletePhoto(photo.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  {photo.caption && (
+                    <CardContent className="p-2">
+                      <p className="text-xs text-slate-600 truncate">{photo.caption}</p>
+                    </CardContent>
+                  )}
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="text-center py-12">
+              <Image className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500">No photos yet. Upload photos to document the job.</p>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Logs Tab */}
+        <TabsContent value="logs" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="section-title">Activity Log</h3>
+            <Dialog open={logDialogOpen} onOpenChange={setLogDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="btn-accent gap-2" data-testid="add-log-btn">
+                  <PlusCircle className="w-4 h-4" /> Add Entry
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Log Entry</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Entry Type</Label>
+                    <Select value={logForm.entry_type} onValueChange={v => setLogForm({...logForm, entry_type: v})}>
+                      <SelectTrigger data-testid="log-type-select"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="note">Note</SelectItem>
+                        <SelectItem value="progress">Progress Update</SelectItem>
+                        <SelectItem value="issue">Issue</SelectItem>
+                        <SelectItem value="photo">Photo Note</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Content</Label>
+                    <Textarea value={logForm.content} onChange={e => setLogForm({...logForm, content: e.target.value})} placeholder="Enter your note..." rows={4} data-testid="log-content" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setLogDialogOpen(false)}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleAddLog} data-testid="save-log-btn">Add Entry</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {logs?.length > 0 ? (
+            <div className="space-y-3">
+              {logs.map(log => (
+                <Card key={log.id} className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      log.entry_type === 'issue' ? 'bg-red-100 text-red-600' :
+                      log.entry_type === 'progress' ? 'bg-green-100 text-green-600' :
+                      'bg-blue-100 text-blue-600'
+                    }`}>
+                      {log.entry_type === 'issue' ? <AlertCircle className="w-4 h-4" /> :
+                       log.entry_type === 'progress' ? <CheckCircle2 className="w-4 h-4" /> :
+                       <FileText className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className="capitalize">{log.entry_type}</Badge>
+                        <span className="text-xs text-slate-500">{new Date(log.created_at).toLocaleString()}</span>
+                        <span className="text-xs text-slate-500">by {log.created_by}</span>
+                      </div>
+                      <p className="text-sm">{log.content}</p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="text-center py-12">
+              <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500">No log entries yet. Add notes to track progress.</p>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Financials Tab */}
+        <TabsContent value="financials" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="section-title">Job Expenses</h3>
+            <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="btn-accent gap-2" data-testid="add-expense-btn">
+                  <PlusCircle className="w-4 h-4" /> Add Expense
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Job Expense</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Description</Label>
+                    <Input value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} placeholder="Equipment rental" data-testid="expense-description" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Amount</Label>
+                      <Input type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})} data-testid="expense-amount" />
+                    </div>
+                    <div>
+                      <Label>Category</Label>
+                      <Select value={expenseForm.category} onValueChange={v => setExpenseForm({...expenseForm, category: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="labor">Labor</SelectItem>
+                          <SelectItem value="equipment">Equipment</SelectItem>
+                          <SelectItem value="materials">Materials</SelectItem>
+                          <SelectItem value="overhead">Overhead</SelectItem>
+                          <SelectItem value="subcontractor">Subcontractor</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Vendor</Label>
+                      <Input value={expenseForm.vendor} onChange={e => setExpenseForm({...expenseForm, vendor: e.target.value})} placeholder="ABC Supply" />
+                    </div>
+                    <div>
+                      <Label>Date</Label>
+                      <Input type="date" value={expenseForm.date} onChange={e => setExpenseForm({...expenseForm, date: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setExpenseDialogOpen(false)}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleAddExpense} data-testid="save-expense-btn">Add Expense</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Cost Breakdown */}
+          {Object.keys(costing.expense_breakdown || {}).length > 0 && (
+            <Card className="p-4">
+              <h4 className="font-semibold mb-3">Cost Breakdown</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries(costing.expense_breakdown).map(([cat, amount]) => (
+                  <div key={cat} className="p-3 bg-slate-50 rounded-lg">
+                    <p className="text-xs text-slate-500 capitalize">{cat}</p>
+                    <p className="text-lg font-semibold">${amount.toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Expenses List */}
+          {expenses?.length > 0 ? (
+            <Card>
+              <CardContent className="p-0">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th>Category</th>
+                      <th>Vendor</th>
+                      <th className="text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses.map(exp => (
+                      <tr key={exp.id}>
+                        <td>{exp.date}</td>
+                        <td>{exp.description}</td>
+                        <td><Badge variant="outline" className="capitalize">{exp.category}</Badge></td>
+                        <td>{exp.vendor || '-'}</td>
+                        <td className="text-right font-semibold">${exp.amount?.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="text-center py-8">
+              <DollarSign className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-slate-500">No expenses tracked yet.</p>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Documents Tab */}
+        <TabsContent value="documents" className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="btn-accent gap-2" data-testid="create-invoice-btn">
+                  <FileText className="w-4 h-4" /> Create Invoice
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Invoice</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Due Date</Label>
+                      <Input type="date" value={invoiceForm.due_date} onChange={e => setInvoiceForm({...invoiceForm, due_date: e.target.value})} data-testid="invoice-due-date" />
+                    </div>
+                    <div>
+                      <Label>Tax Rate (%)</Label>
+                      <Input type="number" step="0.01" value={invoiceForm.tax_rate} onChange={e => setInvoiceForm({...invoiceForm, tax_rate: e.target.value})} />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Notes</Label>
+                    <Textarea value={invoiceForm.notes} onChange={e => setInvoiceForm({...invoiceForm, notes: e.target.value})} placeholder="Invoice notes..." />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setInvoiceDialogOpen(false)}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleCreateInvoice} data-testid="save-invoice-btn">Create Invoice</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={workOrderDialogOpen} onOpenChange={setWorkOrderDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2" data-testid="create-work-order-btn">
+                  <ClipboardList className="w-4 h-4" /> Create Work Order
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-xl">
+                <DialogHeader>
+                  <DialogTitle>Create Work Order</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label>Tasks</Label>
+                    <div className="space-y-2 mb-2">
+                      {workOrderForm.tasks.map((t, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 rounded">
+                          <span className="flex-1">{t}</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setWorkOrderForm({...workOrderForm, tasks: workOrderForm.tasks.filter((_, idx) => idx !== i)})} className="text-red-500">
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input placeholder="Add task..." value={newTask} onChange={e => setNewTask(e.target.value)} />
+                      <Button type="button" onClick={() => { if (newTask) { setWorkOrderForm({...workOrderForm, tasks: [...workOrderForm.tasks, newTask]}); setNewTask(""); }}}>Add</Button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Materials Needed</Label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {workOrderForm.materials_needed.map((m, i) => (
+                        <Badge key={i} variant="secondary" className="gap-1">
+                          {m}
+                          <X className="w-3 h-3 cursor-pointer" onClick={() => setWorkOrderForm({...workOrderForm, materials_needed: workOrderForm.materials_needed.filter((_, idx) => idx !== i)})} />
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input placeholder="Add material..." value={newMaterial} onChange={e => setNewMaterial(e.target.value)} />
+                      <Button type="button" onClick={() => { if (newMaterial) { setWorkOrderForm({...workOrderForm, materials_needed: [...workOrderForm.materials_needed, newMaterial]}); setNewMaterial(""); }}}>Add</Button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Notes</Label>
+                    <Textarea value={workOrderForm.notes} onChange={e => setWorkOrderForm({...workOrderForm, notes: e.target.value})} placeholder="Additional notes..." />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setWorkOrderDialogOpen(false)}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleCreateWorkOrder} data-testid="save-work-order-btn">Create Work Order</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Invoices */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Invoices</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {invoices?.length > 0 ? (
+                <div className="space-y-2">
+                  {invoices.map(inv => (
+                    <div key={inv.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div>
+                        <p className="font-mono text-sm">{inv.invoice_number}</p>
+                        <p className="text-sm text-slate-500">Due: {inv.due_date}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge className={`status-${inv.status}`}>{inv.status}</Badge>
+                        <span className="font-semibold">${inv.total?.toLocaleString()}</span>
+                        <Button variant="ghost" size="icon" onClick={async () => {
+                          const res = await axios.get(`${API}/invoices/${inv.id}/pdf`, { responseType: 'blob' });
+                          const url = window.URL.createObjectURL(new Blob([res.data]));
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.setAttribute('download', `${inv.invoice_number}.pdf`);
+                          document.body.appendChild(link);
+                          link.click();
+                          link.remove();
+                        }}>
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-center py-4">No invoices created yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Work Orders */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Work Orders</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {work_orders?.length > 0 ? (
+                <div className="space-y-2">
+                  {work_orders.map(wo => (
+                    <div key={wo.id} className="p-3 bg-slate-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge className={`status-${wo.status}`}>{wo.status}</Badge>
+                        <span className="text-sm font-medium">{Math.round(wo.completion_percentage)}% Complete</span>
+                      </div>
+                      <Progress value={wo.completion_percentage} className="h-2 mb-2" />
+                      <p className="text-sm text-slate-500">{wo.tasks?.length || 0} tasks • {wo.materials_needed?.length || 0} materials</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-center py-4">No work orders created yet.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+// Crews Page (simplified - keeping for navigation)
 const CrewsPage = () => {
   const [crews, setCrews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedCrew, setSelectedCrew] = useState(null);
-  const [formData, setFormData] = useState({
-    name: "", specialty: "general", status: "available", members: []
-  });
+  const [formData, setFormData] = useState({ name: "", specialty: "general", status: "available", members: [] });
   const [newMember, setNewMember] = useState({ name: "", role: "", phone: "", hourly_rate: 0 });
 
-  const loadCrews = async () => {
+  const loadCrews = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/crews`);
       setCrews(res.data);
@@ -621,9 +1513,9 @@ const CrewsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadCrews(); }, []);
+  useEffect(() => { loadCrews(); }, [loadCrews]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -662,12 +1554,7 @@ const CrewsPage = () => {
 
   const handleEdit = (crew) => {
     setSelectedCrew(crew);
-    setFormData({
-      name: crew.name,
-      specialty: crew.specialty,
-      status: crew.status,
-      members: crew.members || []
-    });
+    setFormData({ name: crew.name, specialty: crew.specialty, status: crew.status, members: crew.members || [] });
     setDialogOpen(true);
   };
 
@@ -699,7 +1586,7 @@ const CrewsPage = () => {
                 <div>
                   <Label>Specialty</Label>
                   <Select value={formData.specialty} onValueChange={v => setFormData({...formData, specialty: v})}>
-                    <SelectTrigger data-testid="crew-specialty-select"><SelectValue /></SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="general">General</SelectItem>
                       <SelectItem value="water">Water Damage</SelectItem>
@@ -711,7 +1598,7 @@ const CrewsPage = () => {
                 <div>
                   <Label>Status</Label>
                   <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
-                    <SelectTrigger data-testid="crew-status-select"><SelectValue /></SelectTrigger>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="available">Available</SelectItem>
                       <SelectItem value="busy">Busy</SelectItem>
@@ -720,9 +1607,7 @@ const CrewsPage = () => {
                   </Select>
                 </div>
               </div>
-
               <Separator />
-
               <div>
                 <Label className="text-base font-semibold">Team Members</Label>
                 <div className="mt-2 space-y-2">
@@ -737,19 +1622,18 @@ const CrewsPage = () => {
                   ))}
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-3">
-                  <Input placeholder="Name" value={newMember.name} onChange={e => setNewMember({...newMember, name: e.target.value})} data-testid="member-name-input" />
-                  <Input placeholder="Role" value={newMember.role} onChange={e => setNewMember({...newMember, role: e.target.value})} data-testid="member-role-input" />
+                  <Input placeholder="Name" value={newMember.name} onChange={e => setNewMember({...newMember, name: e.target.value})} />
+                  <Input placeholder="Role" value={newMember.role} onChange={e => setNewMember({...newMember, role: e.target.value})} />
                   <Input placeholder="Phone" value={newMember.phone} onChange={e => setNewMember({...newMember, phone: e.target.value})} />
                   <div className="flex gap-1">
                     <Input type="number" placeholder="Rate" value={newMember.hourly_rate} onChange={e => setNewMember({...newMember, hourly_rate: e.target.value})} />
-                    <Button type="button" onClick={addMember} size="icon" data-testid="add-member-btn"><Plus className="w-4 h-4" /></Button>
+                    <Button type="button" onClick={addMember} size="icon"><Plus className="w-4 h-4" /></Button>
                   </div>
                 </div>
               </div>
-
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
-                <Button type="submit" className="btn-accent" data-testid="crew-submit-btn">{selectedCrew ? "Update" : "Create"} Crew</Button>
+                <Button type="submit" className="btn-accent">{selectedCrew ? "Update" : "Create"} Crew</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -780,20 +1664,20 @@ const CrewsPage = () => {
                   <span className="text-sm text-slate-600">{crew.members?.length || 0} members</span>
                 </div>
                 {crew.members?.length > 0 && (
-                  <div className="flex -space-x-2 mb-3">
-                    {crew.members.slice(0, 4).map((m, i) => (
-                      <div key={i} className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs font-medium">
-                        {m.name.charAt(0)}
+                  <div className="space-y-1 mb-3">
+                    {crew.members.slice(0, 3).map((m, i) => (
+                      <div key={i} className="text-sm text-slate-600 flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium">{m.name.charAt(0)}</div>
+                        <span>{m.name}</span>
+                        <span className="text-slate-400">• {m.role}</span>
                       </div>
                     ))}
-                    {crew.members.length > 4 && (
-                      <div className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-xs text-slate-500">
-                        +{crew.members.length - 4}
-                      </div>
+                    {crew.members.length > 3 && (
+                      <p className="text-xs text-slate-400">+{crew.members.length - 3} more</p>
                     )}
                   </div>
                 )}
-                <Button variant="outline" size="sm" className="w-full" onClick={() => handleEdit(crew)} data-testid={`edit-crew-${crew.id}`}>
+                <Button variant="outline" size="sm" className="w-full" onClick={() => handleEdit(crew)}>
                   Manage Crew
                 </Button>
               </CardContent>
@@ -805,68 +1689,25 @@ const CrewsPage = () => {
   );
 };
 
-// Invoices Page
+// Simple placeholder pages for other sections (Invoices, WorkOrders, Accounting, Reports, AI Assistant)
 const InvoicesPage = () => {
   const [invoices, setInvoices] = useState([]);
-  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({ job_id: "", due_date: "", notes: "", tax_rate: 8.25 });
+  const navigate = useNavigate();
 
-  const loadData = async () => {
-    try {
-      const [invRes, jobsRes] = await Promise.all([
-        axios.get(`${API}/invoices`),
-        axios.get(`${API}/jobs`)
-      ]);
-      setInvoices(invRes.data);
-      setJobs(jobsRes.data);
-    } catch (err) {
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { loadData(); }, []);
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post(`${API}/invoices`, formData);
-      toast.success("Invoice created!");
-      setDialogOpen(false);
-      loadData();
-      setFormData({ job_id: "", due_date: "", notes: "", tax_rate: 8.25 });
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to create invoice");
-    }
-  };
+  useEffect(() => {
+    axios.get(`${API}/invoices`).then(res => setInvoices(res.data)).catch(() => toast.error("Failed to load")).finally(() => setLoading(false));
+  }, []);
 
   const downloadPDF = async (id, number) => {
-    try {
-      const res = await axios.get(`${API}/invoices/${id}/pdf`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${number}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      toast.success("PDF downloaded!");
-    } catch (err) {
-      toast.error("Failed to download PDF");
-    }
-  };
-
-  const updateStatus = async (id, status) => {
-    try {
-      await axios.put(`${API}/invoices/${id}/status?status=${status}`);
-      toast.success("Status updated!");
-      loadData();
-    } catch (err) {
-      toast.error("Failed to update status");
-    }
+    const res = await axios.get(`${API}/invoices/${id}/pdf`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${number}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
@@ -878,98 +1719,30 @@ const InvoicesPage = () => {
           <h1 className="page-title">Invoices</h1>
           <p className="text-slate-500 mt-1">Manage and track your invoices</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.open(`${API}/export/quickbooks?data_type=invoices`, '_blank')} data-testid="export-invoices-btn">
-            <Download className="w-4 h-4 mr-2" /> Export CSV
-          </Button>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="btn-accent gap-2" data-testid="create-invoice-btn">
-                <Plus className="w-4 h-4" /> New Invoice
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Invoice</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div>
-                  <Label>Select Job</Label>
-                  <Select value={formData.job_id} onValueChange={v => setFormData({...formData, job_id: v})}>
-                    <SelectTrigger data-testid="invoice-job-select"><SelectValue placeholder="Select a job" /></SelectTrigger>
-                    <SelectContent>
-                      {jobs.map(job => (
-                        <SelectItem key={job.id} value={job.id}>{job.title} - {job.customer_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Due Date</Label>
-                    <Input type="date" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})} required data-testid="invoice-due-date" />
-                  </div>
-                  <div>
-                    <Label>Tax Rate (%)</Label>
-                    <Input type="number" step="0.01" value={formData.tax_rate} onChange={e => setFormData({...formData, tax_rate: parseFloat(e.target.value)})} data-testid="invoice-tax-rate" />
-                  </div>
-                </div>
-                <div>
-                  <Label>Notes</Label>
-                  <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Invoice notes..." data-testid="invoice-notes" />
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button type="submit" className="btn-accent" data-testid="invoice-submit-btn">Create Invoice</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Button variant="outline" onClick={() => window.open(`${API}/export/quickbooks?data_type=invoices`, '_blank')}>
+          <Download className="w-4 h-4 mr-2" /> Export CSV
+        </Button>
       </div>
 
       {invoices.length === 0 ? (
         <Card className="text-center py-12">
           <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-slate-500">No invoices yet. Create an invoice from a job to get started!</p>
+          <p className="text-slate-500">No invoices yet. Create invoices from job details.</p>
         </Card>
       ) : (
         <div className="overflow-x-auto">
           <table className="data-table">
-            <thead>
-              <tr>
-                <th>Invoice #</th>
-                <th>Customer</th>
-                <th>Amount</th>
-                <th>Due Date</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {invoices.map(inv => (
-                <tr key={inv.id} data-testid={`invoice-row-${inv.id}`}>
+                <tr key={inv.id}>
                   <td className="font-mono text-sm">{inv.invoice_number}</td>
                   <td>{inv.customer_name}</td>
-                  <td className="font-semibold">${inv.total.toLocaleString()}</td>
+                  <td className="font-semibold">${inv.total?.toLocaleString()}</td>
                   <td>{inv.due_date}</td>
+                  <td><Badge className={`status-${inv.status}`}>{inv.status}</Badge></td>
                   <td>
-                    <Select value={inv.status} onValueChange={v => updateStatus(inv.id, v)}>
-                      <SelectTrigger className="w-28 h-8">
-                        <Badge className={`status-${inv.status}`}>{inv.status}</Badge>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="sent">Sent</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="overdue">Overdue</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </td>
-                  <td>
-                    <Button variant="ghost" size="sm" onClick={() => downloadPDF(inv.id, inv.invoice_number)} data-testid={`download-invoice-${inv.id}`}>
-                      <Download className="w-4 h-4" />
-                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => downloadPDF(inv.id, inv.invoice_number)}><Download className="w-4 h-4" /></Button>
                   </td>
                 </tr>
               ))}
@@ -981,150 +1754,40 @@ const InvoicesPage = () => {
   );
 };
 
-// Work Orders Page
 const WorkOrdersPage = () => {
   const [workOrders, setWorkOrders] = useState([]);
-  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({ job_id: "", tasks: [], materials_needed: [], notes: "" });
-  const [newTask, setNewTask] = useState("");
-  const [newMaterial, setNewMaterial] = useState("");
 
-  const loadData = async () => {
-    try {
-      const [woRes, jobsRes] = await Promise.all([
-        axios.get(`${API}/work-orders`),
-        axios.get(`${API}/jobs`)
-      ]);
-      setWorkOrders(woRes.data);
-      setJobs(jobsRes.data);
-    } catch (err) {
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { loadData(); }, []);
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        ...formData,
-        tasks: formData.tasks.map(t => ({ description: t, is_completed: false }))
-      };
-      await axios.post(`${API}/work-orders`, payload);
-      toast.success("Work order created!");
-      setDialogOpen(false);
-      loadData();
-      setFormData({ job_id: "", tasks: [], materials_needed: [], notes: "" });
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Failed to create work order");
-    }
-  };
+  useEffect(() => {
+    axios.get(`${API}/work-orders`).then(res => setWorkOrders(res.data)).catch(() => toast.error("Failed to load")).finally(() => setLoading(false));
+  }, []);
 
   const toggleTask = async (woId, tasks, taskIndex) => {
     const updated = tasks.map((t, i) => i === taskIndex ? { ...t, is_completed: !t.is_completed } : t);
-    try {
-      await axios.put(`${API}/work-orders/${woId}/tasks`, updated);
-      toast.success("Task updated!");
-      loadData();
-    } catch (err) {
-      toast.error("Failed to update task");
-    }
+    await axios.put(`${API}/work-orders/${woId}/tasks`, updated);
+    toast.success("Task updated!");
+    const res = await axios.get(`${API}/work-orders`);
+    setWorkOrders(res.data);
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="work-orders-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="page-title">Work Orders</h1>
-          <p className="text-slate-500 mt-1">Track tasks and materials for jobs</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="btn-accent gap-2" data-testid="create-work-order-btn">
-              <Plus className="w-4 h-4" /> New Work Order
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-xl">
-            <DialogHeader>
-              <DialogTitle>Create Work Order</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <Label>Select Job</Label>
-                <Select value={formData.job_id} onValueChange={v => setFormData({...formData, job_id: v})}>
-                  <SelectTrigger data-testid="wo-job-select"><SelectValue placeholder="Select a job" /></SelectTrigger>
-                  <SelectContent>
-                    {jobs.map(job => (
-                      <SelectItem key={job.id} value={job.id}>{job.title} - {job.customer_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Tasks</Label>
-                <div className="space-y-2 mb-2">
-                  {formData.tasks.map((t, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 bg-slate-50 rounded">
-                      <span className="flex-1">{t}</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setFormData({...formData, tasks: formData.tasks.filter((_, idx) => idx !== i)})} className="text-red-500">
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Input placeholder="Add task..." value={newTask} onChange={e => setNewTask(e.target.value)} data-testid="wo-task-input" />
-                  <Button type="button" onClick={() => { if (newTask) { setFormData({...formData, tasks: [...formData.tasks, newTask]}); setNewTask(""); }}} data-testid="add-task-btn">Add</Button>
-                </div>
-              </div>
-
-              <div>
-                <Label>Materials Needed</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {formData.materials_needed.map((m, i) => (
-                    <Badge key={i} variant="secondary" className="gap-1">
-                      {m}
-                      <X className="w-3 h-3 cursor-pointer" onClick={() => setFormData({...formData, materials_needed: formData.materials_needed.filter((_, idx) => idx !== i)})} />
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Input placeholder="Add material..." value={newMaterial} onChange={e => setNewMaterial(e.target.value)} data-testid="wo-material-input" />
-                  <Button type="button" onClick={() => { if (newMaterial) { setFormData({...formData, materials_needed: [...formData.materials_needed, newMaterial]}); setNewMaterial(""); }}} data-testid="add-material-btn">Add</Button>
-                </div>
-              </div>
-
-              <div>
-                <Label>Notes</Label>
-                <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Additional notes..." data-testid="wo-notes" />
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" className="btn-accent" data-testid="wo-submit-btn">Create Work Order</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+      <div>
+        <h1 className="page-title">Work Orders</h1>
+        <p className="text-slate-500 mt-1">Track tasks and materials for jobs</p>
       </div>
 
       {workOrders.length === 0 ? (
         <Card className="text-center py-12">
           <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <p className="text-slate-500">No work orders yet. Create one to track job tasks!</p>
+          <p className="text-slate-500">No work orders yet. Create them from job details.</p>
         </Card>
       ) : (
         <div className="grid gap-4">
           {workOrders.map(wo => (
-            <Card key={wo.id} data-testid={`work-order-${wo.id}`}>
+            <Card key={wo.id}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -1138,7 +1801,7 @@ const WorkOrdersPage = () => {
                 </div>
                 <Progress value={wo.completion_percentage} className="mb-4" />
                 <div className="space-y-2">
-                  {wo.tasks.map((task, i) => (
+                  {wo.tasks?.map((task, i) => (
                     <div key={i} className="flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer" onClick={() => toggleTask(wo.id, wo.tasks, i)}>
                       <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${task.is_completed ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}>
                         {task.is_completed && <CheckCircle2 className="w-4 h-4 text-white" />}
@@ -1147,16 +1810,6 @@ const WorkOrdersPage = () => {
                     </div>
                   ))}
                 </div>
-                {wo.materials_needed?.length > 0 && (
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-sm font-medium text-slate-600 mb-2">Materials Needed:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {wo.materials_needed.map((m, i) => (
-                        <Badge key={i} variant="outline">{m}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           ))}
@@ -1166,45 +1819,13 @@ const WorkOrdersPage = () => {
   );
 };
 
-// Accounting Page
 const AccountingPage = () => {
   const [expenses, setExpenses] = useState([]);
-  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({
-    description: "", amount: 0, category: "materials", vendor: "", date: "", is_taxable: false
-  });
 
-  const loadData = async () => {
-    try {
-      const [expRes, txRes] = await Promise.all([
-        axios.get(`${API}/expenses`),
-        axios.get(`${API}/transactions`)
-      ]);
-      setExpenses(expRes.data);
-      setTransactions(txRes.data);
-    } catch (err) {
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { loadData(); }, []);
-
-  const handleAddExpense = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post(`${API}/expenses`, { ...expenseForm, amount: parseFloat(expenseForm.amount) });
-      toast.success("Expense added!");
-      setExpenseDialogOpen(false);
-      loadData();
-      setExpenseForm({ description: "", amount: 0, category: "materials", vendor: "", date: "", is_taxable: false });
-    } catch (err) {
-      toast.error("Failed to add expense");
-    }
-  };
+  useEffect(() => {
+    axios.get(`${API}/expenses`).then(res => setExpenses(res.data)).catch(() => toast.error("Failed to load")).finally(() => setLoading(false));
+  }, []);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
 
@@ -1215,146 +1836,38 @@ const AccountingPage = () => {
           <h1 className="page-title">Accounting</h1>
           <p className="text-slate-500 mt-1">Manage expenses and transactions</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => window.open(`${API}/export/quickbooks?data_type=expenses`, '_blank')} data-testid="export-expenses-btn">
-            <Download className="w-4 h-4 mr-2" /> Export CSV
-          </Button>
-          <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="btn-accent gap-2" data-testid="add-expense-btn">
-                <Plus className="w-4 h-4" /> Add Expense
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Expense</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleAddExpense} className="space-y-4">
-                <div>
-                  <Label>Description</Label>
-                  <Input value={expenseForm.description} onChange={e => setExpenseForm({...expenseForm, description: e.target.value})} placeholder="Expense description" required data-testid="expense-description" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Amount</Label>
-                    <Input type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm({...expenseForm, amount: e.target.value})} required data-testid="expense-amount" />
-                  </div>
-                  <div>
-                    <Label>Category</Label>
-                    <Select value={expenseForm.category} onValueChange={v => setExpenseForm({...expenseForm, category: v})}>
-                      <SelectTrigger data-testid="expense-category"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="labor">Labor</SelectItem>
-                        <SelectItem value="equipment">Equipment</SelectItem>
-                        <SelectItem value="materials">Materials</SelectItem>
-                        <SelectItem value="overhead">Overhead</SelectItem>
-                        <SelectItem value="subcontractor">Subcontractor</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Vendor</Label>
-                    <Input value={expenseForm.vendor} onChange={e => setExpenseForm({...expenseForm, vendor: e.target.value})} placeholder="Vendor name" data-testid="expense-vendor" />
-                  </div>
-                  <div>
-                    <Label>Date</Label>
-                    <Input type="date" value={expenseForm.date} onChange={e => setExpenseForm({...expenseForm, date: e.target.value})} required data-testid="expense-date" />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="taxable" checked={expenseForm.is_taxable} onChange={e => setExpenseForm({...expenseForm, is_taxable: e.target.checked})} />
-                  <Label htmlFor="taxable">Taxable expense</Label>
-                </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setExpenseDialogOpen(false)}>Cancel</Button>
-                  <Button type="submit" className="btn-accent" data-testid="expense-submit-btn">Add Expense</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Button variant="outline" onClick={() => window.open(`${API}/export/quickbooks?data_type=expenses`, '_blank')}>
+          <Download className="w-4 h-4 mr-2" /> Export CSV
+        </Button>
       </div>
 
-      <Tabs defaultValue="expenses">
-        <TabsList>
-          <TabsTrigger value="expenses" data-testid="expenses-tab">Expenses</TabsTrigger>
-          <TabsTrigger value="transactions" data-testid="transactions-tab">Transactions</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="expenses" className="mt-4">
-          {expenses.length === 0 ? (
-            <Card className="text-center py-12">
-              <DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500">No expenses recorded yet.</p>
-            </Card>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Category</th>
-                    <th>Vendor</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenses.map(exp => (
-                    <tr key={exp.id}>
-                      <td>{exp.date}</td>
-                      <td>{exp.description}</td>
-                      <td><Badge variant="outline" className="capitalize">{exp.category}</Badge></td>
-                      <td>{exp.vendor || '-'}</td>
-                      <td className="font-semibold">${exp.amount.toLocaleString()}</td>
-                      <td><Badge className={exp.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>{exp.status}</Badge></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="transactions" className="mt-4">
-          {transactions.length === 0 ? (
-            <Card className="text-center py-12">
-              <DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500">No transactions recorded yet.</p>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {transactions.map(tx => (
-                <Card key={tx.id} className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{tx.description}</p>
-                      <p className="text-sm text-slate-500">{tx.date}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`font-semibold ${tx.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
-                        {tx.transaction_type === 'income' ? '+' : '-'}${tx.amount.toLocaleString()}
-                      </span>
-                      <Badge variant={tx.is_matched ? 'default' : 'outline'}>
-                        {tx.is_matched ? 'Matched' : 'Unmatched'}
-                      </Badge>
-                    </div>
-                  </div>
-                </Card>
+      {expenses.length === 0 ? (
+        <Card className="text-center py-12">
+          <DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-500">No expenses recorded yet. Add expenses from job details.</p>
+        </Card>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Vendor</th><th>Amount</th></tr></thead>
+            <tbody>
+              {expenses.map(exp => (
+                <tr key={exp.id}>
+                  <td>{exp.date}</td>
+                  <td>{exp.description}</td>
+                  <td><Badge variant="outline" className="capitalize">{exp.category}</Badge></td>
+                  <td>{exp.vendor || '-'}</td>
+                  <td className="font-semibold">${exp.amount?.toLocaleString()}</td>
+                </tr>
               ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
 
-// Reports Page
 const ReportsPage = () => {
   const [activeReport, setActiveReport] = useState('profit-loss');
   const [reportData, setReportData] = useState(null);
@@ -1364,11 +1877,7 @@ const ReportsPage = () => {
     setLoading(true);
     setActiveReport(type);
     try {
-      const endpoints = {
-        'profit-loss': '/reports/profit-loss',
-        'tax-summary': '/reports/tax-summary',
-        'cash-flow': '/reports/cash-flow-forecast'
-      };
+      const endpoints = { 'profit-loss': '/reports/profit-loss', 'tax-summary': '/reports/tax-summary', 'cash-flow': '/reports/cash-flow-forecast' };
       const res = await axios.get(`${API}${endpoints[type]}`);
       setReportData(res.data);
     } catch (err) {
@@ -1382,121 +1891,43 @@ const ReportsPage = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="reports-page">
-      <div>
-        <h1 className="page-title">Financial Reports</h1>
-        <p className="text-slate-500 mt-1">View financial summaries and forecasts</p>
-      </div>
-
+      <div><h1 className="page-title">Financial Reports</h1><p className="text-slate-500 mt-1">View financial summaries and forecasts</p></div>
       <div className="flex gap-2">
-        {[
-          { id: 'profit-loss', label: 'Profit & Loss' },
-          { id: 'tax-summary', label: 'Tax Summary' },
-          { id: 'cash-flow', label: 'Cash Flow Forecast' }
-        ].map(report => (
-          <Button
-            key={report.id}
-            variant={activeReport === report.id ? 'default' : 'outline'}
-            onClick={() => loadReport(report.id)}
-            data-testid={`report-${report.id}`}
-          >
-            {report.label}
-          </Button>
+        {[{ id: 'profit-loss', label: 'Profit & Loss' }, { id: 'tax-summary', label: 'Tax Summary' }, { id: 'cash-flow', label: 'Cash Flow Forecast' }].map(report => (
+          <Button key={report.id} variant={activeReport === report.id ? 'default' : 'outline'} onClick={() => loadReport(report.id)}>{report.label}</Button>
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>
-      ) : reportData && (
+      {loading ? <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div> : reportData && (
         <Card>
-          <CardHeader>
-            <CardTitle className="capitalize">{activeReport.replace('-', ' ')}</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="capitalize">{activeReport.replace('-', ' ')}</CardTitle></CardHeader>
           <CardContent>
             {activeReport === 'profit-loss' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-green-600">Total Revenue</p>
-                    <p className="text-2xl font-bold text-green-700">${reportData.total_revenue?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="p-4 bg-red-50 rounded-lg">
-                    <p className="text-sm text-red-600">Total Expenses</p>
-                    <p className="text-2xl font-bold text-red-700">${reportData.total_expenses?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className={`p-4 rounded-lg ${reportData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                    <p className={`text-sm ${reportData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Net Profit</p>
-                    <p className={`text-2xl font-bold ${reportData.net_profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>${reportData.net_profit?.toLocaleString() || 0}</p>
-                  </div>
-                </div>
-                {reportData.expenses_by_category && Object.keys(reportData.expenses_by_category).length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="font-semibold mb-3">Expenses by Category</h4>
-                    <div className="space-y-2">
-                      {Object.entries(reportData.expenses_by_category).map(([cat, amount]) => (
-                        <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                          <span className="capitalize">{cat}</span>
-                          <span className="font-semibold">${amount.toLocaleString()}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-4 bg-green-50 rounded-lg"><p className="text-sm text-green-600">Total Revenue</p><p className="text-2xl font-bold text-green-700">${reportData.total_revenue?.toLocaleString() || 0}</p></div>
+                <div className="p-4 bg-red-50 rounded-lg"><p className="text-sm text-red-600">Total Expenses</p><p className="text-2xl font-bold text-red-700">${reportData.total_expenses?.toLocaleString() || 0}</p></div>
+                <div className={`p-4 rounded-lg ${reportData.net_profit >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}><p className={`text-sm ${reportData.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Net Profit</p><p className={`text-2xl font-bold ${reportData.net_profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>${reportData.net_profit?.toLocaleString() || 0}</p></div>
               </div>
             )}
-
             {activeReport === 'tax-summary' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-600">Sales Tax Collected</p>
-                    <p className="text-2xl font-bold text-blue-700">${reportData.sales_tax_collected?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <p className="text-sm text-slate-600">Taxable Revenue</p>
-                    <p className="text-2xl font-bold text-slate-700">${reportData.taxable_revenue?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="p-4 bg-orange-50 rounded-lg">
-                    <p className="text-sm text-orange-600">Taxable Expenses</p>
-                    <p className="text-2xl font-bold text-orange-700">${reportData.taxable_expenses?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-green-600">Non-Taxable Expenses</p>
-                    <p className="text-2xl font-bold text-green-700">${reportData.non_taxable_expenses?.toLocaleString() || 0}</p>
-                  </div>
-                </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-blue-50 rounded-lg"><p className="text-sm text-blue-600">Sales Tax Collected</p><p className="text-2xl font-bold text-blue-700">${reportData.sales_tax_collected?.toLocaleString() || 0}</p></div>
+                <div className="p-4 bg-slate-50 rounded-lg"><p className="text-sm text-slate-600">Taxable Revenue</p><p className="text-2xl font-bold text-slate-700">${reportData.taxable_revenue?.toLocaleString() || 0}</p></div>
               </div>
             )}
-
             {activeReport === 'cash-flow' && reportData.forecasts && (
-              <div className="space-y-4">
-                <div className="p-4 bg-slate-50 rounded-lg mb-4">
-                  <p className="text-sm text-slate-600">Outstanding Invoices</p>
-                  <p className="text-2xl font-bold text-slate-700">${reportData.outstanding_invoices_total?.toLocaleString() || 0}</p>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  {reportData.forecasts.map((f, i) => (
-                    <Card key={i} className="p-4">
-                      <h4 className="font-semibold text-slate-900 mb-3">{f.period}</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Expected Income</span>
-                          <span className="text-green-600 font-medium">${f.expected_income?.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Expected Expenses</span>
-                          <span className="text-red-600 font-medium">${f.expected_expenses?.toLocaleString()}</span>
-                        </div>
-                        <Separator />
-                        <div className="flex justify-between">
-                          <span className="font-medium">Net Cash Flow</span>
-                          <span className={`font-bold ${f.net_cash_flow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            ${f.net_cash_flow?.toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
+              <div className="grid grid-cols-3 gap-4">
+                {reportData.forecasts.map((f, i) => (
+                  <Card key={i} className="p-4">
+                    <h4 className="font-semibold text-slate-900 mb-3">{f.period}</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between"><span className="text-slate-500">Expected Income</span><span className="text-green-600 font-medium">${f.expected_income?.toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Expected Expenses</span><span className="text-red-600 font-medium">${f.expected_expenses?.toLocaleString()}</span></div>
+                      <Separator />
+                      <div className="flex justify-between"><span className="font-medium">Net Cash Flow</span><span className={`font-bold ${f.net_cash_flow >= 0 ? 'text-green-600' : 'text-red-600'}`}>${f.net_cash_flow?.toLocaleString()}</span></div>
+                    </div>
+                  </Card>
+                ))}
               </div>
             )}
           </CardContent>
@@ -1506,7 +1937,6 @@ const ReportsPage = () => {
   );
 };
 
-// AI Assistant Page
 const AIAssistantPage = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1518,23 +1948,13 @@ const AIAssistantPage = () => {
   const [complianceReport, setComplianceReport] = useState(null);
   const [cashFlowAnalysis, setCashFlowAnalysis] = useState(null);
 
-  useEffect(() => {
-    axios.get(`${API}/jobs`).then(res => setJobs(res.data)).catch(() => {});
-  }, []);
+  useEffect(() => { axios.get(`${API}/jobs`).then(res => setJobs(res.data)).catch(() => {}); }, []);
 
   const generateMessage = async () => {
-    if (!customerName) {
-      toast.error("Please enter a customer name");
-      return;
-    }
+    if (!customerName) return toast.error("Please enter a customer name");
     setLoading(true);
     try {
-      const res = await axios.post(`${API}/ai/generate-message`, {
-        message_type: messageType,
-        customer_name: customerName,
-        job_id: selectedJobId || null,
-        custom_context: customContext || null
-      });
+      const res = await axios.post(`${API}/ai/generate-message`, { message_type: messageType, customer_name: customerName, job_id: selectedJobId || null, custom_context: customContext || null });
       setGeneratedMessage(res.data.message);
       toast.success("Message generated!");
     } catch (err) {
@@ -1572,157 +1992,34 @@ const AIAssistantPage = () => {
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="ai-assistant-page">
-      <div>
-        <h1 className="page-title flex items-center gap-2">
-          <Brain className="w-7 h-7 text-orange-500" />
-          AI Assistant
-        </h1>
-        <p className="text-slate-500 mt-1">AI-powered tools for your restoration business</p>
-      </div>
+      <div><h1 className="page-title flex items-center gap-2"><Brain className="w-7 h-7 text-orange-500" />AI Assistant</h1><p className="text-slate-500 mt-1">AI-powered tools for your restoration business</p></div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Message Generator */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-orange-500" />
-              Customer Message Generator
-            </CardTitle>
-            <CardDescription>Generate professional customer communications</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><MessageSquare className="w-5 h-5 text-orange-500" />Customer Message Generator</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label>Message Type</Label>
-              <Select value={messageType} onValueChange={setMessageType}>
-                <SelectTrigger data-testid="ai-message-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="scheduling">Scheduling Update</SelectItem>
-                  <SelectItem value="arrival">Arrival Notice</SelectItem>
-                  <SelectItem value="progress">Progress Update</SelectItem>
-                  <SelectItem value="payment">Payment Reminder</SelectItem>
-                  <SelectItem value="custom">Custom Message</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Customer Name</Label>
-              <Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="John Smith" data-testid="ai-customer-name" />
-            </div>
-            <div>
-              <Label>Link to Job (optional)</Label>
-              <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-                <SelectTrigger data-testid="ai-job-select"><SelectValue placeholder="Select a job" /></SelectTrigger>
-                <SelectContent>
-                  {jobs.map(job => (
-                    <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {messageType === 'custom' && (
-              <div>
-                <Label>Custom Context</Label>
-                <Textarea value={customContext} onChange={e => setCustomContext(e.target.value)} placeholder="Describe what the message should be about..." data-testid="ai-custom-context" />
-              </div>
-            )}
-            <Button className="btn-accent w-full" onClick={generateMessage} disabled={loading} data-testid="generate-message-btn">
-              {loading ? "Generating..." : "Generate Message"}
-            </Button>
-            {generatedMessage && (
-              <div className="p-4 bg-slate-50 rounded-lg">
-                <p className="text-sm font-medium text-slate-600 mb-2">Generated Message:</p>
-                <p className="text-slate-900">{generatedMessage}</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => { navigator.clipboard.writeText(generatedMessage); toast.success("Copied!"); }}>
-                  Copy to Clipboard
-                </Button>
-              </div>
-            )}
+            <div><Label>Message Type</Label><Select value={messageType} onValueChange={setMessageType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="scheduling">Scheduling Update</SelectItem><SelectItem value="arrival">Arrival Notice</SelectItem><SelectItem value="progress">Progress Update</SelectItem><SelectItem value="payment">Payment Reminder</SelectItem><SelectItem value="custom">Custom Message</SelectItem></SelectContent></Select></div>
+            <div><Label>Customer Name</Label><Input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="John Smith" /></div>
+            <div><Label>Link to Job (optional)</Label><Select value={selectedJobId} onValueChange={setSelectedJobId}><SelectTrigger><SelectValue placeholder="Select a job" /></SelectTrigger><SelectContent>{jobs.map(job => (<SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>))}</SelectContent></Select></div>
+            {messageType === 'custom' && <div><Label>Custom Context</Label><Textarea value={customContext} onChange={e => setCustomContext(e.target.value)} placeholder="Describe what the message should be about..." /></div>}
+            <Button className="btn-accent w-full" onClick={generateMessage} disabled={loading}>{loading ? "Generating..." : "Generate Message"}</Button>
+            {generatedMessage && <div className="p-4 bg-slate-50 rounded-lg"><p className="text-sm font-medium text-slate-600 mb-2">Generated Message:</p><p className="text-slate-900">{generatedMessage}</p><Button variant="outline" size="sm" className="mt-3" onClick={() => { navigator.clipboard.writeText(generatedMessage); toast.success("Copied!"); }}>Copy to Clipboard</Button></div>}
           </CardContent>
         </Card>
 
-        {/* Compliance Analyzer */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-orange-500" />
-              Compliance Review
-            </CardTitle>
-            <CardDescription>AI analysis of financial activity for issues</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><AlertCircle className="w-5 h-5 text-orange-500" />Compliance Review</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <Button className="btn-accent w-full" onClick={analyzeCompliance} disabled={loading} data-testid="analyze-compliance-btn">
-              {loading ? "Analyzing..." : "Run Compliance Check"}
-            </Button>
-            {complianceReport && (
-              <div className="space-y-4">
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm font-medium text-slate-600 mb-2">AI Analysis:</p>
-                  <p className="text-slate-900 whitespace-pre-wrap">{complianceReport.analysis}</p>
-                </div>
-                {complianceReport.potential_duplicates?.length > 0 && (
-                  <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <p className="text-sm font-medium text-yellow-700 mb-1">Potential Duplicates Found:</p>
-                    <ul className="text-sm text-yellow-600 list-disc list-inside">
-                      {complianceReport.potential_duplicates.map((d, i) => (
-                        <li key={i}>{d}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {complianceReport.action_items?.filter(Boolean).length > 0 && (
-                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm font-medium text-blue-700 mb-1">Action Items:</p>
-                    <ul className="text-sm text-blue-600 list-disc list-inside">
-                      {complianceReport.action_items.filter(Boolean).map((a, i) => (
-                        <li key={i}>{a}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
+            <Button className="btn-accent w-full" onClick={analyzeCompliance} disabled={loading}>{loading ? "Analyzing..." : "Run Compliance Check"}</Button>
+            {complianceReport && <div className="p-4 bg-slate-50 rounded-lg"><p className="text-sm font-medium text-slate-600 mb-2">AI Analysis:</p><p className="text-slate-900 whitespace-pre-wrap text-sm">{complianceReport.analysis}</p></div>}
           </CardContent>
         </Card>
 
-        {/* Cash Flow Forecaster */}
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-orange-500" />
-              AI Cash Flow Forecast
-            </CardTitle>
-            <CardDescription>AI-powered 30/60/90 day cash flow analysis</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5 text-orange-500" />AI Cash Flow Forecast</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <Button className="btn-accent" onClick={forecastCashFlow} disabled={loading} data-testid="forecast-cashflow-btn">
-              {loading ? "Analyzing..." : "Generate AI Forecast"}
-            </Button>
-            {cashFlowAnalysis && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-600">Outstanding Invoices</p>
-                    <p className="text-xl font-bold text-blue-700">${cashFlowAnalysis.metrics?.outstanding_invoices?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-green-600">Recent Revenue</p>
-                    <p className="text-xl font-bold text-green-700">${cashFlowAnalysis.metrics?.recent_revenue?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="p-4 bg-red-50 rounded-lg">
-                    <p className="text-sm text-red-600">Total Expenses</p>
-                    <p className="text-xl font-bold text-red-700">${cashFlowAnalysis.metrics?.total_expenses?.toLocaleString() || 0}</p>
-                  </div>
-                  <div className="p-4 bg-orange-50 rounded-lg">
-                    <p className="text-sm text-orange-600">Active Jobs</p>
-                    <p className="text-xl font-bold text-orange-700">{cashFlowAnalysis.metrics?.active_jobs || 0}</p>
-                  </div>
-                </div>
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <p className="text-sm font-medium text-slate-600 mb-2">AI Insights:</p>
-                  <p className="text-slate-900 whitespace-pre-wrap">{cashFlowAnalysis.ai_analysis}</p>
-                </div>
-              </div>
-            )}
+            <Button className="btn-accent" onClick={forecastCashFlow} disabled={loading}>{loading ? "Analyzing..." : "Generate AI Forecast"}</Button>
+            {cashFlowAnalysis && <div className="p-4 bg-slate-50 rounded-lg"><p className="text-sm font-medium text-slate-600 mb-2">AI Insights:</p><p className="text-slate-900 whitespace-pre-wrap text-sm">{cashFlowAnalysis.ai_analysis}</p></div>}
           </CardContent>
         </Card>
       </div>
@@ -1740,6 +2037,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><Layout><DashboardPage /></Layout></ProtectedRoute>} />
           <Route path="/jobs" element={<ProtectedRoute><Layout><JobsPage /></Layout></ProtectedRoute>} />
+          <Route path="/jobs/:jobId" element={<ProtectedRoute><Layout><JobDetailPage /></Layout></ProtectedRoute>} />
           <Route path="/crews" element={<ProtectedRoute><Layout><CrewsPage /></Layout></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><Layout><InvoicesPage /></Layout></ProtectedRoute>} />
           <Route path="/work-orders" element={<ProtectedRoute><Layout><WorkOrdersPage /></Layout></ProtectedRoute>} />
