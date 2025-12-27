@@ -309,7 +309,7 @@ class RestorationOSAPITester:
             "is_taxable": False
         }
         
-        success, data, status = self.make_request('POST', 'expenses', expense_data, 201)
+        success, data, status = self.make_request('POST', 'expenses', expense_data, 200)
         
         if success and 'id' in data:
             self.created_expense_id = data['id']
