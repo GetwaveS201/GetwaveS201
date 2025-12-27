@@ -1,8 +1,8 @@
 {
   "summary": {
     "total_tests": 21,
-    "passed_tests": 13,
-    "success_rate": 61.904761904761905
+    "passed_tests": 21,
+    "success_rate": 100.0
   },
   "test_results": [
     {
@@ -25,74 +25,74 @@
     },
     {
       "test": "Create Job",
-      "success": false,
-      "details": "",
-      "error": "Job creation failed with status 200"
+      "success": true,
+      "details": "Job created with ID: d9255316-e796-48c5-a589-6cd4677f42dd",
+      "error": ""
     },
     {
       "test": "Get Jobs",
       "success": true,
-      "details": "Retrieved 1 jobs",
+      "details": "Retrieved 2 jobs",
       "error": ""
     },
     {
       "test": "Update Job",
-      "success": false,
-      "details": "",
-      "error": "No job ID available for update"
+      "success": true,
+      "details": "Job status updated to in_progress",
+      "error": ""
     },
     {
       "test": "Create Crew",
-      "success": false,
-      "details": "",
-      "error": "Crew creation failed with status 200"
+      "success": true,
+      "details": "Crew created with ID: 3c8366b2-6f35-4309-adc8-111c53e9ddbe",
+      "error": ""
     },
     {
       "test": "Get Crews",
       "success": true,
-      "details": "Retrieved 1 crews",
+      "details": "Retrieved 2 crews",
       "error": ""
     },
     {
       "test": "Create Invoice",
-      "success": false,
-      "details": "",
-      "error": "No job ID available for invoice creation"
+      "success": true,
+      "details": "Invoice created with ID: 63da7149-68ca-4eab-b1d5-4a0cce6d049e",
+      "error": ""
     },
     {
       "test": "Get Invoices",
       "success": true,
-      "details": "Retrieved 0 invoices",
+      "details": "Retrieved 1 invoices",
       "error": ""
     },
     {
       "test": "Create Work Order",
-      "success": false,
-      "details": "",
-      "error": "No job ID available for work order creation"
+      "success": true,
+      "details": "Work order created with ID: f1f79ddc-27b9-452a-91f6-480aad53a8a5",
+      "error": ""
     },
     {
       "test": "Update Work Order Tasks",
-      "success": false,
-      "details": "",
-      "error": "No work order ID available"
+      "success": true,
+      "details": "Work order tasks updated successfully",
+      "error": ""
     },
     {
       "test": "Create Expense",
-      "success": false,
-      "details": "",
-      "error": "Expense creation failed with status 200"
+      "success": true,
+      "details": "Expense created with ID: d629c056-4e28-49c1-9c42-5cd458221ef4",
+      "error": ""
     },
     {
       "test": "Get Expenses",
       "success": true,
-      "details": "Retrieved 1 expenses",
+      "details": "Retrieved 2 expenses",
       "error": ""
     },
     {
       "test": "Dashboard Stats",
       "success": true,
-      "details": "Dashboard loaded with 1 total jobs",
+      "details": "Dashboard loaded with 2 total jobs",
       "error": ""
     },
     {
@@ -115,9 +115,9 @@
     },
     {
       "test": "AI Message Generation",
-      "success": false,
-      "details": "",
-      "error": "No job ID available for AI message"
+      "success": true,
+      "details": "AI message generated: Hi John, we're continuing the restoration at 123 M...",
+      "error": ""
     },
     {
       "test": "AI Compliance Check",
@@ -133,10 +133,10 @@
     }
   ],
   "created_resources": {
-    "job_id": null,
-    "crew_id": null,
-    "invoice_id": null,
-    "work_order_id": null,
-    "expense_id": null
+    "job_id": "d9255316-e796-48c5-a589-6cd4677f42dd",
+    "crew_id": "3c8366b2-6f35-4309-adc8-111c53e9ddbe",
+    "invoice_id": "63da7149-68ca-4eab-b1d5-4a0cce6d049e",
+    "work_order_id": "f1f79ddc-27b9-452a-91f6-480aad53a8a5",
+    "expense_id": "d629c056-4e28-49c1-9c42-5cd458221ef4"
   }
 }
