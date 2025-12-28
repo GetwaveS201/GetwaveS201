@@ -267,12 +267,24 @@ const DashboardPage = () => {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
 
-  const metricCards = [
-    { label: "Active Jobs", value: stats?.active_jobs || 0, icon: Briefcase, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Available Crews", value: stats?.available_crews || 0, icon: Users, color: "text-green-600", bg: "bg-green-50" },
-    { label: "Revenue", value: `$${(stats?.total_revenue || 0).toLocaleString()}`, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Outstanding", value: `$${(stats?.outstanding_invoices || 0).toLocaleString()}`, icon: Clock, color: "text-orange-600", bg: "bg-orange-50" },
-  ];
+  const TrendBadge = ({ value, suffix = "%" }) => {
+    if (value === 0 || value === null || value === undefined) return null;
+    const isPositive = value > 0;
+    return (
+      <span className={`inline-flex items-center text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+        {isPositive ? <TrendingUp className="w-3 h-3 mr-0.5" /> : <TrendingDown className="w-3 h-3 mr-0.5" />}
+        {isPositive ? '+' : ''}{value.toFixed(1)}{suffix}
+      </span>
+    );
+  };
+
+  const LOSS_TYPE_ICONS = {
+    water: { icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-100' },
+    fire: { icon: Flame, color: 'text-red-500', bg: 'bg-red-100' },
+    mold: { icon: Bug, color: 'text-green-500', bg: 'bg-green-100' },
+    storm: { icon: CloudRain, color: 'text-purple-500', bg: 'bg-purple-100' },
+    other: { icon: Wrench, color: 'text-slate-500', bg: 'bg-slate-100' }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in" data-testid="dashboard">
@@ -286,67 +298,182 @@ const DashboardPage = () => {
         </Button>
       </div>
 
+      {/* Primary Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metricCards.map((card, i) => (
-          <Card key={i} className="metric-card card-hover" data-testid={`metric-${card.label.toLowerCase().replace(' ', '-')}`}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-slate-500">{card.label}</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">{card.value}</p>
-              </div>
-              <div className={`p-2 rounded-lg ${card.bg}`}>
-                <card.icon className={`w-5 h-5 ${card.color}`} />
+        <Card className="metric-card card-hover" data-testid="metric-active-jobs">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Active Jobs</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{stats?.active_jobs || 0}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-slate-500">{stats?.jobs_this_week || 0} new this week</span>
+                <TrendBadge value={stats?.jobs_change_percent} />
               </div>
             </div>
-          </Card>
-        ))}
+            <div className="p-2 rounded-lg bg-blue-50">
+              <Briefcase className="w-5 h-5 text-blue-600" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="metric-card card-hover" data-testid="metric-revenue">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Revenue</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">${(stats?.total_revenue || 0).toLocaleString()}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-slate-500">${(stats?.this_week_revenue || 0).toLocaleString()} this week</span>
+                <TrendBadge value={stats?.revenue_change_percent} />
+              </div>
+            </div>
+            <div className="p-2 rounded-lg bg-emerald-50">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="metric-card card-hover" data-testid="metric-outstanding">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Outstanding</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">${(stats?.outstanding_invoices || 0).toLocaleString()}</p>
+              <div className="flex items-center gap-2 mt-1">
+                {stats?.overdue_invoices_count > 0 ? (
+                  <span className="text-xs text-red-600 font-medium">{stats.overdue_invoices_count} overdue (${(stats.overdue_invoices_total || 0).toLocaleString()})</span>
+                ) : (
+                  <span className="text-xs text-green-600">No overdue invoices</span>
+                )}
+              </div>
+            </div>
+            <div className="p-2 rounded-lg bg-orange-50">
+              <Clock className="w-5 h-5 text-orange-600" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="metric-card card-hover" data-testid="metric-crews">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Crew Utilization</p>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{stats?.crew_utilization || 0}%</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-slate-500">{stats?.busy_crews || 0} of {stats?.total_crews || 0} crews active</span>
+              </div>
+            </div>
+            <div className="p-2 rounded-lg bg-green-50">
+              <Users className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+        </Card>
       </div>
 
+      {/* Secondary Metrics Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
+        <Card className="p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Avg Job Value</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">${(stats?.avg_job_value || 0).toLocaleString()}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Avg Days to Complete</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{stats?.avg_days_to_complete || 0} days</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Profit Margin</p>
+          <p className={`text-xl font-bold mt-1 ${stats?.profit_margin >= 20 ? 'text-green-600' : stats?.profit_margin >= 10 ? 'text-yellow-600' : 'text-red-600'}`}>
+            {stats?.profit_margin || 0}%
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Labor Hours</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-xl font-bold text-slate-900">{stats?.labor_hours_this_week || 0}</p>
+            <TrendBadge value={stats?.labor_hours_change_percent} />
+          </div>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Completed This Week</p>
+          <p className="text-xl font-bold text-green-600 mt-1">{stats?.completed_this_week || 0}</p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Insurance Jobs</p>
+          <p className="text-xl font-bold text-slate-900 mt-1">{stats?.jobs_with_insurance || 0}</p>
+        </Card>
+      </div>
+
+      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
+        {/* Jobs by Phase */}
+        <Card>
           <CardHeader>
-            <CardTitle className="section-title">Recent Jobs</CardTitle>
+            <CardTitle className="section-title">Jobs by Phase</CardTitle>
           </CardHeader>
-          <CardContent>
-            {stats?.recent_jobs?.length > 0 ? (
-              <div className="space-y-3">
-                {stats.recent_jobs.map((job, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center">
-                        <Briefcase className="w-5 h-5 text-slate-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-900">{job.title}</p>
-                        <p className="text-sm text-slate-500">{job.customer_name}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={`status-${job.status}`}>{job.status?.replace('_', ' ')}</Badge>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </div>
+          <CardContent className="space-y-3">
+            {[
+              { key: 'intake', label: 'Intake', color: 'bg-slate-500' },
+              { key: 'emergency_services', label: 'Emergency', color: 'bg-red-500' },
+              { key: 'drying_remediation', label: 'Drying/Remediation', color: 'bg-blue-500' },
+              { key: 'repairs_rebuild', label: 'Repairs/Rebuild', color: 'bg-orange-500' },
+              { key: 'closeout', label: 'Closeout', color: 'bg-green-500' }
+            ].map(phase => {
+              const count = stats?.jobs_by_phase?.[phase.key] || 0;
+              const total = stats?.active_jobs || 1;
+              const percent = Math.round((count / total) * 100) || 0;
+              return (
+                <div key={phase.key}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-slate-600">{phase.label}</span>
+                    <span className="font-semibold">{count}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-500 text-center py-8">No recent jobs. Create your first job to get started!</p>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full ${phase.color} rounded-full transition-all`} style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Loss Type Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="section-title">Jobs by Loss Type</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Object.entries(stats?.loss_type_counts || {}).map(([type, count]) => {
+              const config = LOSS_TYPE_ICONS[type] || LOSS_TYPE_ICONS.other;
+              const Icon = config.icon;
+              return (
+                <div key={type} className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-lg ${config.bg} flex items-center justify-center`}>
+                      <Icon className={`w-4 h-4 ${config.color}`} />
+                    </div>
+                    <span className="capitalize">{type.replace('_', ' ')}</span>
+                  </div>
+                  <Badge variant="outline">{count}</Badge>
+                </div>
+              );
+            })}
+            {Object.keys(stats?.loss_type_counts || {}).length === 0 && (
+              <p className="text-slate-500 text-center py-4">No jobs yet</p>
             )}
           </CardContent>
         </Card>
 
+        {/* Quick Stats */}
         <Card>
           <CardHeader>
-            <CardTitle className="section-title">Quick Stats</CardTitle>
+            <CardTitle className="section-title">Financial Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Total Jobs</span>
-              <span className="font-semibold">{stats?.total_jobs || 0}</span>
+              <span className="text-slate-600">Total Revenue</span>
+              <span className="font-semibold text-green-600">${(stats?.total_revenue || 0).toLocaleString()}</span>
             </div>
             <Separator />
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Total Crews</span>
-              <span className="font-semibold">{stats?.total_crews || 0}</span>
+              <span className="text-slate-600">Total Expenses</span>
+              <span className="font-semibold text-red-600">${(stats?.total_expenses || 0).toLocaleString()}</span>
             </div>
             <Separator />
             <div className="flex items-center justify-between">
@@ -357,9 +484,97 @@ const DashboardPage = () => {
             </div>
             <Separator />
             <div className="flex items-center justify-between">
-              <span className="text-slate-600">Pending Invoices</span>
-              <span className="font-semibold text-orange-600">{stats?.pending_invoices || 0}</span>
+              <span className="text-slate-600">Insurance Approved</span>
+              <span className="font-semibold">${(stats?.insurance_approved_total || 0).toLocaleString()}</span>
             </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <span className="text-slate-600">Depreciation Held</span>
+              <span className="font-semibold text-orange-600">${(stats?.depreciation_withheld_total || 0).toLocaleString()}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Alerts and Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Alerts */}
+        <Card className={stats?.overdue_invoices_count > 0 || stats?.jobs_over_budget_count > 0 ? 'border-red-200' : ''}>
+          <CardHeader>
+            <CardTitle className="section-title flex items-center gap-2">
+              <AlertCircle className={`w-5 h-5 ${stats?.overdue_invoices_count > 0 ? 'text-red-500' : 'text-slate-400'}`} />
+              Alerts & Action Items
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {stats?.overdue_invoices?.length > 0 && (
+              <div className="p-3 bg-red-50 rounded-lg border border-red-100">
+                <p className="font-semibold text-red-700 mb-2">Overdue Invoices ({stats.overdue_invoices_count})</p>
+                {stats.overdue_invoices.map((inv, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm py-1">
+                    <span>{inv.customer_name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">${inv.total.toLocaleString()}</span>
+                      <Badge className="bg-red-100 text-red-700">{inv.days_overdue}d overdue</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {stats?.jobs_over_budget?.length > 0 && (
+              <div className="p-3 bg-orange-50 rounded-lg border border-orange-100">
+                <p className="font-semibold text-orange-700 mb-2">Jobs Over Budget ({stats.jobs_over_budget_count})</p>
+                {stats.jobs_over_budget.map((job, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm py-1">
+                    <span>{job.title}</span>
+                    <Badge className="bg-orange-100 text-orange-700">+${job.variance.toLocaleString()}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!stats?.overdue_invoices?.length && !stats?.jobs_over_budget?.length && (
+              <div className="text-center py-6">
+                <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-2" />
+                <p className="text-green-700 font-medium">All clear!</p>
+                <p className="text-sm text-slate-500">No urgent action items</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Jobs */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="section-title">Recent Jobs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats?.recent_jobs?.length > 0 ? (
+              <div className="space-y-3">
+                {stats.recent_jobs.map((job, i) => {
+                  const LossIcon = LOSS_TYPE_ICONS[job.loss_type]?.icon || Wrench;
+                  const lossConfig = LOSS_TYPE_ICONS[job.loss_type] || LOSS_TYPE_ICONS.other;
+                  return (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg ${lossConfig.bg} flex items-center justify-center`}>
+                          <LossIcon className={`w-5 h-5 ${lossConfig.color}`} />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">{job.title}</p>
+                          <p className="text-sm text-slate-500">{job.customer_name}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`status-${job.status}`}>{job.status?.replace('_', ' ')}</Badge>
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-slate-500 text-center py-8">No jobs yet. Create your first job to get started!</p>
+            )}
           </CardContent>
         </Card>
       </div>
