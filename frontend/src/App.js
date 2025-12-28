@@ -1093,7 +1093,7 @@ const JobDetailPage = () => {
         {/* Photos Tab */}
         <TabsContent value="photos" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="section-title">Job Photos</h3>
+            <h3 className="section-title">Job Photos ({photos?.length || 0})</h3>
             <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="btn-accent gap-2" data-testid="upload-photo-btn">
@@ -1105,18 +1105,48 @@ const JobDetailPage = () => {
                   <DialogTitle>Upload Photo</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div>
-                    <Label>Select Photo</Label>
-                    <Input type="file" accept="image/*" onChange={e => setPhotoFile(e.target.files[0])} data-testid="photo-input" />
+                  <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center">
+                    {photoFile ? (
+                      <div className="space-y-2">
+                        <img 
+                          src={URL.createObjectURL(photoFile)} 
+                          alt="Preview" 
+                          className="max-h-48 mx-auto rounded-lg object-contain"
+                        />
+                        <p className="text-sm text-slate-600">{photoFile.name}</p>
+                        <Button variant="outline" size="sm" onClick={() => setPhotoFile(null)}>
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Camera className="w-10 h-10 mx-auto text-slate-300" />
+                        <p className="text-slate-500">Click to select a photo</p>
+                        <Input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={e => setPhotoFile(e.target.files[0])} 
+                          className="max-w-xs mx-auto"
+                          data-testid="photo-input" 
+                        />
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label>Caption (optional)</Label>
-                    <Input value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} placeholder="Before photo - kitchen damage" data-testid="photo-caption" />
+                    <Input 
+                      value={photoCaption} 
+                      onChange={e => setPhotoCaption(e.target.value)} 
+                      placeholder="e.g., Before photo - kitchen water damage" 
+                      data-testid="photo-caption" 
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setPhotoDialogOpen(false)}>Cancel</Button>
-                  <Button className="btn-accent" onClick={handleUploadPhoto} data-testid="save-photo-btn">Upload</Button>
+                  <Button variant="outline" onClick={() => { setPhotoDialogOpen(false); setPhotoFile(null); setPhotoCaption(""); }}>Cancel</Button>
+                  <Button className="btn-accent" onClick={handleUploadPhoto} disabled={!photoFile} data-testid="save-photo-btn">
+                    Upload Photo
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -1126,29 +1156,32 @@ const JobDetailPage = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {photos.map(photo => (
                 <Card key={photo.id} className="overflow-hidden group relative">
-                  <div className="aspect-square bg-slate-100">
+                  <div className="aspect-square bg-slate-100 relative">
                     <img src={photo.data} alt={photo.caption || "Job photo"} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button variant="secondary" size="icon" onClick={() => window.open(photo.data, '_blank')} title="View full size">
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDeletePhoto(photo.id)} title="Delete photo">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <Button variant="secondary" size="icon" onClick={() => window.open(photo.data, '_blank')}>
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button variant="destructive" size="icon" onClick={() => handleDeletePhoto(photo.id)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  {photo.caption && (
-                    <CardContent className="p-2">
-                      <p className="text-xs text-slate-600 truncate">{photo.caption}</p>
-                    </CardContent>
-                  )}
+                  <CardContent className="p-3">
+                    <p className="text-sm text-slate-700 truncate">{photo.caption || "No caption"}</p>
+                    <p className="text-xs text-slate-400 mt-1">{new Date(photo.created_at).toLocaleDateString()} by {photo.created_by}</p>
+                  </CardContent>
                 </Card>
               ))}
             </div>
           ) : (
             <Card className="text-center py-12">
-              <Image className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-500">No photos yet. Upload photos to document the job.</p>
+              <Image className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+              <h3 className="font-semibold text-slate-700 mb-2">No Photos Yet</h3>
+              <p className="text-slate-500 mb-4">Upload photos to document the job progress, before/after shots, and damage.</p>
+              <Button className="btn-accent gap-2" onClick={() => setPhotoDialogOpen(true)}>
+                <Camera className="w-4 h-4" /> Upload First Photo
+              </Button>
             </Card>
           )}
         </TabsContent>
