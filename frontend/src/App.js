@@ -665,21 +665,23 @@ const JobDetailPage = () => {
     try {
       const reader = new FileReader();
       reader.onload = async () => {
-        const formData = new FormData();
-        formData.append('photo_data', reader.result);
-        formData.append('caption', photoCaption);
-        await axios.post(`${API}/jobs/${jobId}/photos`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        toast.success("Photo uploaded!");
-        setPhotoDialogOpen(false);
-        setPhotoFile(null);
-        setPhotoCaption("");
-        loadJobData();
+        try {
+          await axios.post(`${API}/jobs/${jobId}/photos`, {
+            photo_data: reader.result,
+            caption: photoCaption
+          });
+          toast.success("Photo uploaded!");
+          setPhotoDialogOpen(false);
+          setPhotoFile(null);
+          setPhotoCaption("");
+          loadJobData();
+        } catch (err) {
+          toast.error("Failed to upload photo");
+        }
       };
       reader.readAsDataURL(photoFile);
     } catch (err) {
-      toast.error("Failed to upload photo");
+      toast.error("Failed to read photo file");
     }
   };
 
