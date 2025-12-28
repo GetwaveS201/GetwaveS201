@@ -729,16 +729,20 @@ async def delete_job_log(log_id: str, current_user: dict = Depends(get_current_u
 
 # ============ PHOTOS ROUTES ============
 
+class PhotoUpload(BaseModel):
+    photo_data: str
+    caption: Optional[str] = ""
+
 @api_router.post("/jobs/{job_id}/photos")
-async def upload_job_photo(job_id: str, photo_data: str = Form(...), caption: str = Form(""), current_user: dict = Depends(get_current_user)):
+async def upload_job_photo(job_id: str, photo: PhotoUpload, current_user: dict = Depends(get_current_user)):
     photo_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     
     photo_doc = {
         "id": photo_id,
         "job_id": job_id,
-        "data": photo_data,
-        "caption": caption,
+        "data": photo.photo_data,
+        "caption": photo.caption,
         "created_by": current_user["name"],
         "created_at": now
     }
