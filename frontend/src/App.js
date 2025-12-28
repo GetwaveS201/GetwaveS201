@@ -102,9 +102,10 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/jobs", icon: Briefcase, label: "Jobs" },
     { path: "/crews", icon: Users, label: "Crews" },
+    { path: "/daily-logs", icon: ClipboardList, label: "Daily Logs" },
     { path: "/invoices", icon: FileText, label: "Invoices" },
-    { path: "/work-orders", icon: ClipboardList, label: "Work Orders" },
-    { path: "/accounting", icon: DollarSign, label: "Accounting" },
+    { path: "/collections", icon: Banknote, label: "Collections" },
+    { path: "/accounting", icon: DollarSign, label: "Expenses" },
     { path: "/reports", icon: BarChart3, label: "Reports" },
     { path: "/ai-assistant", icon: MessageSquare, label: "AI Assistant" },
   ];
