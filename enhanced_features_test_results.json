@@ -1,8 +1,8 @@
 {
   "summary": {
     "total_tests": 7,
-    "passed_tests": 5,
-    "success_rate": 71.42857142857143
+    "passed_tests": 7,
+    "success_rate": 100.0
   },
   "test_results": [
     {
@@ -19,27 +19,27 @@
     },
     {
       "test": "Upload Photo",
-      "success": false,
-      "details": "",
-      "error": "Photo upload failed with status 422"
+      "success": true,
+      "details": "Photo uploaded with ID: b9286602-bc5b-4ffe-a271-45411ab51774",
+      "error": ""
     },
     {
       "test": "Get Job Photos",
       "success": true,
-      "details": "Retrieved 0 photos",
+      "details": "Retrieved 1 photos",
       "error": ""
     },
     {
       "test": "Add Job Expense",
       "success": true,
-      "details": "Job expense added with ID: 95bdd213-a18c-41c8-8126-c372bfe87e2b",
+      "details": "Job expense added with ID: f57b25c9-1fce-4fba-babe-f7debf23974d",
       "error": ""
     },
     {
       "test": "Delete Photo",
-      "success": false,
-      "details": "",
-      "error": "No photo ID available"
+      "success": true,
+      "details": "Photo deleted successfully",
+      "error": ""
     },
     {
       "test": "Delete Line Item",
@@ -49,7 +49,7 @@
     }
   ],
   "created_resources": {
-    "job_id": "6ee3885d-fafa-4018-aaa5-2a9bfeb34b4e",
-    "photo_id": null
+    "job_id": "c296cf91-c9b8-44e8-b331-36f61b1db69d",
+    "photo_id": "b9286602-bc5b-4ffe-a271-45411ab51774"
   }
 }
