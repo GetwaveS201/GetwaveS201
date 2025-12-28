@@ -10,7 +10,9 @@ import {
   Clock, CheckCircle2, AlertCircle, Download, Send, Brain,
   Camera, Trash2, Edit, ArrowLeft, MapPin, Phone, Mail,
   Calendar, Tag, User, Image, FileImage, Receipt, PlusCircle,
-  ChevronDown, Eye, Printer
+  ChevronDown, Eye, Printer, Shield, Building, Droplets, Flame,
+  Bug, CloudRain, AlertTriangle, Wrench, FileCheck, PhoneCall,
+  History, CreditCard, Banknote
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
