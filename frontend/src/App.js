@@ -2700,7 +2700,9 @@ function App() {
           <Route path="/jobs" element={<ProtectedRoute><Layout><JobsPage /></Layout></ProtectedRoute>} />
           <Route path="/jobs/:jobId" element={<ProtectedRoute><Layout><JobDetailPage /></Layout></ProtectedRoute>} />
           <Route path="/crews" element={<ProtectedRoute><Layout><CrewsPage /></Layout></ProtectedRoute>} />
+          <Route path="/daily-logs" element={<ProtectedRoute><Layout><DailyLogsPage /></Layout></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><Layout><InvoicesPage /></Layout></ProtectedRoute>} />
+          <Route path="/collections" element={<ProtectedRoute><Layout><CollectionsPage /></Layout></ProtectedRoute>} />
           <Route path="/work-orders" element={<ProtectedRoute><Layout><WorkOrdersPage /></Layout></ProtectedRoute>} />
           <Route path="/accounting" element={<ProtectedRoute><Layout><AccountingPage /></Layout></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Layout><ReportsPage /></Layout></ProtectedRoute>} />
