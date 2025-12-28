@@ -2095,6 +2095,391 @@ const WorkOrdersPage = () => {
   );
 };
 
+// Daily Logs Page
+const DailyLogsPage = () => {
+  const [dailyLogs, setDailyLogs] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [crews, setCrews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    job_id: "", date: new Date().toISOString().split('T')[0], phase: "general",
+    labor_entries: [], equipment_entries: [], material_entries: [],
+    weather_conditions: "", work_performed: "", issues_encountered: "", notes: ""
+  });
+  const [laborEntry, setLaborEntry] = useState({ crew_member_name: "", hours: 0, hourly_rate: 0, task_description: "" });
+  const [equipmentEntry, setEquipmentEntry] = useState({ equipment_name: "", quantity: 1, daily_rate: 0, notes: "" });
+  const [materialEntry, setMaterialEntry] = useState({ material_name: "", quantity: 0, unit: "each", unit_cost: 0 });
+
+  const loadData = useCallback(async () => {
+    try {
+      const [logsRes, jobsRes, crewsRes] = await Promise.all([
+        axios.get(`${API}/daily-logs`),
+        axios.get(`${API}/jobs`),
+        axios.get(`${API}/crews`)
+      ]);
+      setDailyLogs(logsRes.data);
+      setJobs(jobsRes.data);
+      setCrews(crewsRes.data);
+    } catch (err) {
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/daily-logs`, formData);
+      toast.success("Daily log created!");
+      setDialogOpen(false);
+      loadData();
+      resetForm();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to create log");
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      job_id: "", date: new Date().toISOString().split('T')[0], phase: "general",
+      labor_entries: [], equipment_entries: [], material_entries: [],
+      weather_conditions: "", work_performed: "", issues_encountered: "", notes: ""
+    });
+  };
+
+  const addLaborEntry = () => {
+    if (laborEntry.crew_member_name && laborEntry.hours > 0) {
+      setFormData({
+        ...formData,
+        labor_entries: [...formData.labor_entries, { ...laborEntry, hours: parseFloat(laborEntry.hours), hourly_rate: parseFloat(laborEntry.hourly_rate) || 0 }]
+      });
+      setLaborEntry({ crew_member_name: "", hours: 0, hourly_rate: 0, task_description: "" });
+    }
+  };
+
+  const addEquipmentEntry = () => {
+    if (equipmentEntry.equipment_name) {
+      setFormData({
+        ...formData,
+        equipment_entries: [...formData.equipment_entries, { ...equipmentEntry, quantity: parseInt(equipmentEntry.quantity), daily_rate: parseFloat(equipmentEntry.daily_rate) || 0 }]
+      });
+      setEquipmentEntry({ equipment_name: "", quantity: 1, daily_rate: 0, notes: "" });
+    }
+  };
+
+  const addMaterialEntry = () => {
+    if (materialEntry.material_name && materialEntry.quantity > 0) {
+      setFormData({
+        ...formData,
+        material_entries: [...formData.material_entries, { ...materialEntry, quantity: parseFloat(materialEntry.quantity), unit_cost: parseFloat(materialEntry.unit_cost) || 0 }]
+      });
+      setMaterialEntry({ material_name: "", quantity: 0, unit: "each", unit_cost: 0 });
+    }
+  };
+
+  const getJobById = (id) => jobs.find(j => j.id === id);
+
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
+
+  return (
+    <div className="space-y-6 animate-fade-in" data-testid="daily-logs-page">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Daily Job Logs</h1>
+          <p className="text-slate-500 mt-1">Track labor, equipment, and materials by day</p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogTrigger asChild>
+            <Button className="btn-accent gap-2" data-testid="create-daily-log-btn">
+              <Plus className="w-4 h-4" /> New Daily Log
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create Daily Log</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Select Job *</Label>
+                  <Select value={formData.job_id} onValueChange={v => setFormData({...formData, job_id: v})}>
+                    <SelectTrigger><SelectValue placeholder="Select job" /></SelectTrigger>
+                    <SelectContent>
+                      {jobs.filter(j => j.status !== 'completed').map(job => (
+                        <SelectItem key={job.id} value={job.id}>{job.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Date *</Label>
+                  <Input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required />
+                </div>
+                <div>
+                  <Label>Phase</Label>
+                  <Select value={formData.phase} onValueChange={v => setFormData({...formData, phase: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="emergency_services">Emergency Services</SelectItem>
+                      <SelectItem value="drying_remediation">Drying/Remediation</SelectItem>
+                      <SelectItem value="repairs_rebuild">Repairs/Rebuild</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Labor Entries */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2"><User className="w-4 h-4 text-blue-500" /> Labor Hours</h4>
+                {formData.labor_entries.map((entry, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 bg-blue-50 rounded text-sm">
+                    <span className="flex-1">{entry.crew_member_name} - {entry.hours}hrs @ ${entry.hourly_rate}/hr = ${(entry.hours * entry.hourly_rate).toFixed(2)}</span>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormData({...formData, labor_entries: formData.labor_entries.filter((_, idx) => idx !== i)})} className="text-red-500"><X className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+                <div className="grid grid-cols-5 gap-2">
+                  <Input placeholder="Name" value={laborEntry.crew_member_name} onChange={e => setLaborEntry({...laborEntry, crew_member_name: e.target.value})} />
+                  <Input type="number" step="0.5" placeholder="Hours" value={laborEntry.hours || ""} onChange={e => setLaborEntry({...laborEntry, hours: e.target.value})} />
+                  <Input type="number" step="0.01" placeholder="Rate" value={laborEntry.hourly_rate || ""} onChange={e => setLaborEntry({...laborEntry, hourly_rate: e.target.value})} />
+                  <Input placeholder="Task" value={laborEntry.task_description} onChange={e => setLaborEntry({...laborEntry, task_description: e.target.value})} />
+                  <Button type="button" onClick={addLaborEntry}><Plus className="w-4 h-4" /></Button>
+                </div>
+              </div>
+
+              {/* Equipment Entries */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2"><Wrench className="w-4 h-4 text-orange-500" /> Equipment Used</h4>
+                {formData.equipment_entries.map((entry, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 bg-orange-50 rounded text-sm">
+                    <span className="flex-1">{entry.equipment_name} x{entry.quantity} @ ${entry.daily_rate}/day = ${(entry.quantity * entry.daily_rate).toFixed(2)}</span>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormData({...formData, equipment_entries: formData.equipment_entries.filter((_, idx) => idx !== i)})} className="text-red-500"><X className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+                <div className="grid grid-cols-5 gap-2">
+                  <Input placeholder="Equipment" value={equipmentEntry.equipment_name} onChange={e => setEquipmentEntry({...equipmentEntry, equipment_name: e.target.value})} className="col-span-2" />
+                  <Input type="number" placeholder="Qty" value={equipmentEntry.quantity || ""} onChange={e => setEquipmentEntry({...equipmentEntry, quantity: e.target.value})} />
+                  <Input type="number" step="0.01" placeholder="Daily Rate" value={equipmentEntry.daily_rate || ""} onChange={e => setEquipmentEntry({...equipmentEntry, daily_rate: e.target.value})} />
+                  <Button type="button" onClick={addEquipmentEntry}><Plus className="w-4 h-4" /></Button>
+                </div>
+              </div>
+
+              {/* Material Entries */}
+              <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2"><Receipt className="w-4 h-4 text-green-500" /> Materials Used</h4>
+                {formData.material_entries.map((entry, i) => (
+                  <div key={i} className="flex items-center gap-2 p-2 bg-green-50 rounded text-sm">
+                    <span className="flex-1">{entry.material_name} - {entry.quantity} {entry.unit} @ ${entry.unit_cost}/ea = ${(entry.quantity * entry.unit_cost).toFixed(2)}</span>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormData({...formData, material_entries: formData.material_entries.filter((_, idx) => idx !== i)})} className="text-red-500"><X className="w-4 h-4" /></Button>
+                  </div>
+                ))}
+                <div className="grid grid-cols-5 gap-2">
+                  <Input placeholder="Material" value={materialEntry.material_name} onChange={e => setMaterialEntry({...materialEntry, material_name: e.target.value})} />
+                  <Input type="number" step="0.01" placeholder="Qty" value={materialEntry.quantity || ""} onChange={e => setMaterialEntry({...materialEntry, quantity: e.target.value})} />
+                  <Select value={materialEntry.unit} onValueChange={v => setMaterialEntry({...materialEntry, unit: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="each">Each</SelectItem>
+                      <SelectItem value="sqft">Sq Ft</SelectItem>
+                      <SelectItem value="lf">Linear Ft</SelectItem>
+                      <SelectItem value="gallon">Gallon</SelectItem>
+                      <SelectItem value="roll">Roll</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input type="number" step="0.01" placeholder="Unit Cost" value={materialEntry.unit_cost || ""} onChange={e => setMaterialEntry({...materialEntry, unit_cost: e.target.value})} />
+                  <Button type="button" onClick={addMaterialEntry}><Plus className="w-4 h-4" /></Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Weather Conditions</Label>
+                  <Input value={formData.weather_conditions} onChange={e => setFormData({...formData, weather_conditions: e.target.value})} placeholder="Clear, 75°F" />
+                </div>
+                <div>
+                  <Label>Work Performed</Label>
+                  <Textarea value={formData.work_performed} onChange={e => setFormData({...formData, work_performed: e.target.value})} placeholder="Summary of work done..." rows={2} />
+                </div>
+              </div>
+
+              <div>
+                <Label>Issues Encountered</Label>
+                <Textarea value={formData.issues_encountered} onChange={e => setFormData({...formData, issues_encountered: e.target.value})} placeholder="Any problems or delays..." rows={2} />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
+                <Button type="submit" className="btn-accent" disabled={!formData.job_id}>Create Log</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {dailyLogs.length === 0 ? (
+        <Card className="text-center py-12">
+          <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-500">No daily logs yet. Create your first log to track job progress.</p>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {dailyLogs.map(log => {
+            const job = getJobById(log.job_id);
+            const laborTotal = log.labor_entries?.reduce((sum, e) => sum + (e.hours * e.hourly_rate), 0) || 0;
+            const equipmentTotal = log.equipment_entries?.reduce((sum, e) => sum + (e.quantity * e.daily_rate), 0) || 0;
+            const materialTotal = log.material_entries?.reduce((sum, e) => sum + (e.quantity * e.unit_cost), 0) || 0;
+            
+            return (
+              <Card key={log.id} className="card-hover">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold">{job?.title || 'Unknown Job'}</h3>
+                        <Badge variant="outline">{log.date}</Badge>
+                        <Badge variant="outline" className="capitalize">{log.phase?.replace('_', ' ')}</Badge>
+                      </div>
+                      {log.work_performed && <p className="text-sm text-slate-600 mt-1">{log.work_performed}</p>}
+                      <div className="flex gap-4 mt-2 text-sm">
+                        <span className="text-blue-600">Labor: ${laborTotal.toFixed(2)}</span>
+                        <span className="text-orange-600">Equipment: ${equipmentTotal.toFixed(2)}</span>
+                        <span className="text-green-600">Materials: ${materialTotal.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xl font-bold">${(laborTotal + equipmentTotal + materialTotal).toFixed(2)}</p>
+                      <p className="text-xs text-slate-500">Day Total</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Collections Page
+const CollectionsPage = () => {
+  const [collectionsData, setCollectionsData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    axios.get(`${API}/reports/collections`)
+      .then(res => setCollectionsData(res.data))
+      .catch(() => toast.error("Failed to load collections data"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const markFollowupComplete = async (invoiceId, day) => {
+    try {
+      await axios.put(`${API}/invoices/${invoiceId}/followup?day=${day}&notes=Followed up`);
+      toast.success("Follow-up marked complete!");
+      const res = await axios.get(`${API}/reports/collections`);
+      setCollectionsData(res.data);
+    } catch (err) {
+      toast.error("Failed to update follow-up");
+    }
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
+
+  return (
+    <div className="space-y-6 animate-fade-in" data-testid="collections-page">
+      <div>
+        <h1 className="page-title">Collections & Follow-ups</h1>
+        <p className="text-slate-500 mt-1">Track outstanding invoices and payment follow-ups</p>
+      </div>
+
+      {/* Aging Buckets */}
+      <div className="grid grid-cols-5 gap-4">
+        {[
+          { label: "Current", key: "current", color: "bg-green-50 text-green-700" },
+          { label: "1-30 Days", key: "1-30", color: "bg-yellow-50 text-yellow-700" },
+          { label: "31-60 Days", key: "31-60", color: "bg-orange-50 text-orange-700" },
+          { label: "61-90 Days", key: "61-90", color: "bg-red-50 text-red-700" },
+          { label: "90+ Days", key: "90+", color: "bg-red-100 text-red-800" }
+        ].map(bucket => (
+          <Card key={bucket.key} className={`${bucket.color} border-0`}>
+            <CardContent className="p-4 text-center">
+              <p className="text-sm font-medium">{bucket.label}</p>
+              <p className="text-2xl font-bold">${(collectionsData?.aging_buckets?.[bucket.key] || 0).toLocaleString()}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PhoneCall className="w-5 h-5 text-orange-500" />
+            Follow-ups Due ({collectionsData?.followups_due_count || 0})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {collectionsData?.followups_due?.length > 0 ? (
+            <div className="space-y-3">
+              {collectionsData.followups_due.map((item, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div>
+                    <p className="font-semibold">{item.invoice_number}</p>
+                    <p className="text-sm text-slate-600">{item.customer_name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline">Day {item.followup_day} Follow-up</Badge>
+                      <Badge className={item.days_overdue > 30 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}>
+                        {item.days_overdue} days overdue
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-lg font-bold">${item.total.toLocaleString()}</p>
+                      <p className="text-xs text-slate-500">Due: {item.due_date}</p>
+                    </div>
+                    <Button size="sm" onClick={() => markFollowupComplete(item.invoice_id, item.followup_day)}>
+                      <CheckCircle2 className="w-4 h-4 mr-1" /> Done
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-500 text-center py-8">No follow-ups due. Great job staying on top of collections!</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Collection Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-slate-50 rounded-lg">
+              <p className="text-sm text-slate-600">Total Outstanding</p>
+              <p className="text-3xl font-bold text-slate-900">${(collectionsData?.total_outstanding || 0).toLocaleString()}</p>
+            </div>
+            <div className="p-4 bg-slate-50 rounded-lg">
+              <p className="text-sm text-slate-600">Follow-up Schedule</p>
+              <p className="text-sm text-slate-700 mt-1">Day 3, 7, 14, 21, 30, 45, 60, 90</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 const AccountingPage = () => {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
