@@ -1,0 +1,55 @@
+{
+  "summary": {
+    "total_tests": 7,
+    "passed_tests": 5,
+    "success_rate": 71.42857142857143
+  },
+  "test_results": [
+    {
+      "test": "Job Details Endpoint",
+      "success": true,
+      "details": "All sections present: job, crew, invoices, work_orders, expenses, logs, photos, costing",
+      "error": ""
+    },
+    {
+      "test": "Add Line Item",
+      "success": true,
+      "details": "Line item added, new total: $600.0",
+      "error": ""
+    },
+    {
+      "test": "Upload Photo",
+      "success": false,
+      "details": "",
+      "error": "Photo upload failed with status 422"
+    },
+    {
+      "test": "Get Job Photos",
+      "success": true,
+      "details": "Retrieved 0 photos",
+      "error": ""
+    },
+    {
+      "test": "Add Job Expense",
+      "success": true,
+      "details": "Job expense added with ID: 95bdd213-a18c-41c8-8126-c372bfe87e2b",
+      "error": ""
+    },
+    {
+      "test": "Delete Photo",
+      "success": false,
+      "details": "",
+      "error": "No photo ID available"
+    },
+    {
+      "test": "Delete Line Item",
+      "success": true,
+      "details": "Line item deleted successfully",
+      "error": ""
+    }
+  ],
+  "created_resources": {
+    "job_id": "6ee3885d-fafa-4018-aaa5-2a9bfeb34b4e",
+    "photo_id": null
+  }
+}
