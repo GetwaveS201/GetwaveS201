@@ -43,9 +43,16 @@ app = FastAPI(title="RestorationOS API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ============ ENUMS & CONSTANTS ============
+
+JOB_PHASES = ["intake", "emergency_services", "drying_remediation", "repairs_rebuild", "closeout"]
+JOB_STATUSES = ["pending", "scheduled", "in_progress", "on_hold", "completed", "cancelled"]
+LOSS_TYPES = ["water", "fire", "mold", "storm", "sewage", "biohazard", "vandalism", "other"]
+INSURANCE_STATUSES = ["pending", "submitted", "approved", "partial_approved", "denied", "paid", "closed"]
+FOLLOWUP_SCHEDULE = [3, 7, 14, 21, 30, 45, 60, 90]  # Days after invoice
 
 # ============ MODELS ============
 
@@ -72,225 +79,222 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
 
-# Job Models
+# Job Models - Enhanced
+class InsuranceClaim(BaseModel):
+    carrier: str = ""
+    adjuster_name: str = ""
+    adjuster_phone: str = ""
+    adjuster_email: str = ""
+    claim_number: str = ""
+    policy_number: str = ""
+    deductible: float = 0
+    status: str = "pending"  # pending, submitted, approved, partial_approved, denied, paid, closed
+    date_of_loss: Optional[str] = None
+    date_submitted: Optional[str] = None
+    date_approved: Optional[str] = None
+    approved_amount: float = 0
+    depreciation_withheld: float = 0
+    notes: str = ""
+
 class JobLineItem(BaseModel):
     description: str
     quantity: float = 1
     unit: str = "each"
     unit_price: float = 0
-    item_type: str = "labor"  # labor, equipment, material
+    item_type: str = "labor"  # labor, equipment, material, subcontractor
     is_taxable: bool = True
+    phase: str = "general"
+
+class PaymentRecord(BaseModel):
+    date: str
+    amount: float
+    payment_type: str = "insurance"  # insurance, customer, deductible, depreciation_recovery
+    reference: str = ""
+    notes: str = ""
 
 class JobCreate(BaseModel):
-    title: str
+    # Customer Info
     customer_name: str
     customer_phone: str
     customer_email: Optional[str] = None
-    address: str
+    property_address: str
+    billing_address: Optional[str] = None
+    
+    # Job Details
+    title: str
+    loss_type: str = "water"  # water, fire, mold, storm, etc.
+    loss_date: Optional[str] = None
     scope: str
-    priority: str = "medium"  # low, medium, high, urgent
-    status: str = "pending"  # pending, scheduled, in_progress, completed, cancelled
+    priority: str = "medium"
+    status: str = "pending"
+    current_phase: str = "intake"
+    
+    # Assignment
     assigned_crew_id: Optional[str] = None
+    project_manager: Optional[str] = None
+    
+    # Scheduling
     scheduled_date: Optional[str] = None
     estimated_completion: Optional[str] = None
+    
+    # Insurance
+    insurance_claim: Optional[InsuranceClaim] = None
+    
+    # Financial
+    estimated_amount: float = 0
+    budget_amount: float = 0
+    
     notes: Optional[str] = None
     line_items: List[JobLineItem] = []
 
 class JobUpdate(BaseModel):
-    title: Optional[str] = None
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
     customer_email: Optional[str] = None
-    address: Optional[str] = None
+    property_address: Optional[str] = None
+    billing_address: Optional[str] = None
+    title: Optional[str] = None
+    loss_type: Optional[str] = None
+    loss_date: Optional[str] = None
     scope: Optional[str] = None
     priority: Optional[str] = None
     status: Optional[str] = None
+    current_phase: Optional[str] = None
     assigned_crew_id: Optional[str] = None
+    project_manager: Optional[str] = None
     scheduled_date: Optional[str] = None
     estimated_completion: Optional[str] = None
+    insurance_claim: Optional[InsuranceClaim] = None
+    estimated_amount: Optional[float] = None
+    budget_amount: Optional[float] = None
     notes: Optional[str] = None
     line_items: Optional[List[JobLineItem]] = None
 
-class JobResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    title: str
-    customer_name: str
-    customer_phone: str
-    customer_email: Optional[str] = None
-    address: str
-    scope: str
-    priority: str
-    status: str
-    assigned_crew_id: Optional[str] = None
-    scheduled_date: Optional[str] = None
-    estimated_completion: Optional[str] = None
-    notes: Optional[str] = None
-    line_items: List[JobLineItem] = []
-    total_amount: float = 0
-    created_at: str
-    updated_at: str
-    created_by: str
-
 # Crew Models
 class CrewMember(BaseModel):
+    id: str = ""
     name: str
     role: str
-    phone: str
+    phone: str = ""
     hourly_rate: float = 0
+    is_active: bool = True
 
 class CrewCreate(BaseModel):
     name: str
     members: List[CrewMember] = []
-    specialty: str = "general"  # water, fire, mold, general
-    status: str = "available"  # available, busy, off
+    specialty: str = "general"
+    status: str = "available"
+    home_base: str = ""
 
 class CrewUpdate(BaseModel):
     name: Optional[str] = None
     members: Optional[List[CrewMember]] = None
     specialty: Optional[str] = None
     status: Optional[str] = None
+    home_base: Optional[str] = None
 
-class CrewResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    name: str
-    members: List[CrewMember] = []
-    specialty: str
-    status: str
-    created_at: str
-    updated_at: str
-
-# Invoice Models
-class InvoiceCreate(BaseModel):
-    job_id: str
-    due_date: str
-    notes: Optional[str] = None
-    tax_rate: float = 8.25
-
-class InvoiceResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    invoice_number: str
-    job_id: str
-    customer_name: str
-    customer_email: Optional[str] = None
-    address: str
-    line_items: List[Dict[str, Any]] = []
-    subtotal: float
-    tax_amount: float
-    total: float
-    status: str  # draft, sent, paid, overdue
-    due_date: str
-    notes: Optional[str] = None
-    created_at: str
-
-# Work Order Models
+# Work Order Models - Enhanced
 class WorkOrderTask(BaseModel):
+    id: str = ""
     description: str
     is_completed: bool = False
     assigned_to: Optional[str] = None
+    completed_at: Optional[str] = None
+    completed_by: Optional[str] = None
+
+class WorkOrderCheckpoint(BaseModel):
+    description: str
+    is_verified: bool = False
+    verified_at: Optional[str] = None
+    verified_by: Optional[str] = None
 
 class WorkOrderCreate(BaseModel):
     job_id: str
+    phase: str = "general"
     tasks: List[WorkOrderTask] = []
     materials_needed: List[str] = []
+    equipment_needed: List[str] = []
+    checkpoints: List[WorkOrderCheckpoint] = []
     notes: Optional[str] = None
 
-class WorkOrderResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
+# Daily Job Log Models
+class LaborEntry(BaseModel):
+    crew_member_name: str
+    hours: float
+    hourly_rate: float = 0
+    task_description: str = ""
+
+class EquipmentEntry(BaseModel):
+    equipment_name: str
+    quantity: int = 1
+    daily_rate: float = 0
+    notes: str = ""
+
+class MaterialEntry(BaseModel):
+    material_name: str
+    quantity: float
+    unit: str = "each"
+    unit_cost: float = 0
+
+class DailyLogCreate(BaseModel):
     job_id: str
-    job_title: str
-    tasks: List[Dict[str, Any]] = []
-    materials_needed: List[str] = []
-    completion_percentage: float
-    status: str
+    date: str
+    phase: str = "general"
+    labor_entries: List[LaborEntry] = []
+    equipment_entries: List[EquipmentEntry] = []
+    material_entries: List[MaterialEntry] = []
+    weather_conditions: str = ""
+    work_performed: str = ""
+    issues_encountered: str = ""
+    photos: List[str] = []
+    notes: str = ""
+
+# Invoice Models - Enhanced
+class InvoiceCreate(BaseModel):
+    job_id: str
+    due_date: str
+    invoice_type: str = "progress"  # progress, final, supplement
+    phase: Optional[str] = None
     notes: Optional[str] = None
-    created_at: str
-    updated_at: str
+    tax_rate: float = 8.25
+    include_line_items: bool = True
+    custom_line_items: List[JobLineItem] = []
 
 # Expense Models
 class ExpenseCreate(BaseModel):
-    description: str
-    amount: float
-    category: str  # labor, equipment, materials, overhead, subcontractor, other
-    job_id: Optional[str] = None
-    vendor: Optional[str] = None
-    date: str
-    is_taxable: bool = False
-    receipt_data: Optional[str] = None
-
-class ExpenseResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
     description: str
     amount: float
     category: str
     job_id: Optional[str] = None
     vendor: Optional[str] = None
     date: str
-    is_taxable: bool
-    status: str  # pending, approved, exported
-    created_at: str
+    is_taxable: bool = False
+    phase: Optional[str] = None
+    receipt_data: Optional[str] = None
 
-# Job Log Models
-class JobLogCreate(BaseModel):
+# Communication Log
+class CommunicationLogCreate(BaseModel):
     job_id: str
-    entry_type: str  # note, photo, progress, issue
+    contact_type: str  # customer, adjuster, carrier, subcontractor, internal
+    contact_name: str
+    method: str  # phone, email, text, in_person
+    direction: str  # inbound, outbound
+    subject: str
     content: str
-    photo_data: Optional[str] = None
+    follow_up_required: bool = False
+    follow_up_date: Optional[str] = None
 
-class JobLogResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    job_id: str
-    entry_type: str
-    content: str
-    photo_url: Optional[str] = None
-    created_by: str
-    created_at: str
+# Photo Upload
+class PhotoUpload(BaseModel):
+    photo_data: str
+    caption: Optional[str] = ""
 
-# Transaction Models
-class TransactionCreate(BaseModel):
-    description: str
-    amount: float
-    transaction_type: str  # income, expense
-    date: str
-    reference: Optional[str] = None
-    matched_invoice_id: Optional[str] = None
-    matched_expense_id: Optional[str] = None
-
-class TransactionResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    description: str
-    amount: float
-    transaction_type: str
-    date: str
-    reference: Optional[str] = None
-    matched_invoice_id: Optional[str] = None
-    matched_expense_id: Optional[str] = None
-    is_matched: bool
-    created_at: str
-
-# AI Message Models
+# AI Message Request
 class AIMessageRequest(BaseModel):
-    message_type: str  # scheduling, arrival, progress, payment, custom
+    message_type: str
     job_id: Optional[str] = None
     customer_name: str
     custom_context: Optional[str] = None
-
-class AIMessageResponse(BaseModel):
-    message: str
-    message_type: str
-
-# Report Models
-class CashFlowForecast(BaseModel):
-    period: str
-    expected_income: float
-    expected_expenses: float
-    net_cash_flow: float
 
 # ============ AUTH HELPERS ============
 
@@ -344,13 +348,7 @@ async def register(user_data: UserCreate):
     await db.users.insert_one(user_doc)
     
     token = create_access_token({"sub": user_id})
-    user_response = UserResponse(
-        id=user_id,
-        email=user_data.email,
-        name=user_data.name,
-        role=user_data.role,
-        created_at=now
-    )
+    user_response = UserResponse(id=user_id, email=user_data.email, name=user_data.name, role=user_data.role, created_at=now)
     return TokenResponse(access_token=token, user=user_response)
 
 @api_router.post("/auth/login", response_model=TokenResponse)
@@ -360,13 +358,7 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     token = create_access_token({"sub": user["id"]})
-    user_response = UserResponse(
-        id=user["id"],
-        email=user["email"],
-        name=user["name"],
-        role=user["role"],
-        created_at=user["created_at"]
-    )
+    user_response = UserResponse(id=user["id"], email=user["email"], name=user["name"], role=user["role"], created_at=user["created_at"])
     return TokenResponse(access_token=token, user=user_response)
 
 @api_router.get("/auth/me", response_model=UserResponse)
@@ -375,52 +367,76 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 # ============ JOBS ROUTES ============
 
-@api_router.post("/jobs", response_model=JobResponse)
+@api_router.post("/jobs")
 async def create_job(job_data: JobCreate, current_user: dict = Depends(get_current_user)):
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     
-    # Calculate total amount
     total = sum(item.quantity * item.unit_price for item in job_data.line_items)
     
     job_doc = {
         "id": job_id,
         **job_data.model_dump(),
         "line_items": [item.model_dump() for item in job_data.line_items],
+        "insurance_claim": job_data.insurance_claim.model_dump() if job_data.insurance_claim else None,
         "total_amount": total,
+        "payments": [],
+        "phase_history": [{"phase": job_data.current_phase, "started_at": now, "ended_at": None}],
         "created_at": now,
         "updated_at": now,
         "created_by": current_user["id"]
     }
     await db.jobs.insert_one(job_doc)
-    return JobResponse(**job_doc)
+    
+    job_doc.pop("_id", None)
+    return job_doc
 
-@api_router.get("/jobs", response_model=List[JobResponse])
-async def get_jobs(current_user: dict = Depends(get_current_user)):
-    jobs = await db.jobs.find({}, {"_id": 0}).to_list(1000)
-    return [JobResponse(**job) for job in jobs]
+@api_router.get("/jobs")
+async def get_jobs(status: Optional[str] = None, phase: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    query = {}
+    if status:
+        query["status"] = status
+    if phase:
+        query["current_phase"] = phase
+    
+    jobs = await db.jobs.find(query, {"_id": 0}).to_list(1000)
+    return jobs
 
-@api_router.get("/jobs/{job_id}", response_model=JobResponse)
+@api_router.get("/jobs/{job_id}")
 async def get_job(job_id: str, current_user: dict = Depends(get_current_user)):
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return JobResponse(**job)
+    return job
 
-@api_router.put("/jobs/{job_id}", response_model=JobResponse)
+@api_router.put("/jobs/{job_id}")
 async def update_job(job_id: str, job_data: JobUpdate, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
     update_data = {k: v for k, v in job_data.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Handle phase change
+    if "current_phase" in update_data and update_data["current_phase"] != job.get("current_phase"):
+        now = datetime.now(timezone.utc).isoformat()
+        phase_history = job.get("phase_history", [])
+        if phase_history:
+            phase_history[-1]["ended_at"] = now
+        phase_history.append({"phase": update_data["current_phase"], "started_at": now, "ended_at": None})
+        update_data["phase_history"] = phase_history
     
     if "line_items" in update_data:
         update_data["line_items"] = [item.model_dump() if hasattr(item, 'model_dump') else item for item in update_data["line_items"]]
         update_data["total_amount"] = sum(item["quantity"] * item["unit_price"] for item in update_data["line_items"])
     
+    if "insurance_claim" in update_data and update_data["insurance_claim"]:
+        update_data["insurance_claim"] = update_data["insurance_claim"].model_dump() if hasattr(update_data["insurance_claim"], 'model_dump') else update_data["insurance_claim"]
+    
     await db.jobs.update_one({"id": job_id}, {"$set": update_data})
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return JobResponse(**job)
+    updated_job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    return updated_job
 
 @api_router.delete("/jobs/{job_id}")
 async def delete_job(job_id: str, current_user: dict = Depends(get_current_user)):
@@ -429,48 +445,183 @@ async def delete_job(job_id: str, current_user: dict = Depends(get_current_user)
         raise HTTPException(status_code=404, detail="Job not found")
     return {"message": "Job deleted"}
 
+@api_router.post("/jobs/{job_id}/line-items")
+async def add_job_line_item(job_id: str, item: JobLineItem, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    line_items = job.get("line_items", [])
+    line_items.append(item.model_dump())
+    total = sum(i["quantity"] * i["unit_price"] for i in line_items)
+    
+    await db.jobs.update_one({"id": job_id}, {"$set": {"line_items": line_items, "total_amount": total, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"message": "Line item added", "total_amount": total}
+
+@api_router.delete("/jobs/{job_id}/line-items/{item_index}")
+async def delete_job_line_item(job_id: str, item_index: int, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    line_items = job.get("line_items", [])
+    if 0 <= item_index < len(line_items):
+        line_items.pop(item_index)
+    
+    total = sum(i["quantity"] * i["unit_price"] for i in line_items)
+    await db.jobs.update_one({"id": job_id}, {"$set": {"line_items": line_items, "total_amount": total, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"message": "Line item deleted", "total_amount": total}
+
+@api_router.post("/jobs/{job_id}/payments")
+async def add_payment(job_id: str, payment: PaymentRecord, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    payments = job.get("payments", [])
+    payments.append(payment.model_dump())
+    
+    await db.jobs.update_one({"id": job_id}, {"$set": {"payments": payments, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"message": "Payment recorded"}
+
+@api_router.get("/jobs/{job_id}/details")
+async def get_job_details(job_id: str, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    crew = None
+    if job.get("assigned_crew_id"):
+        crew = await db.crews.find_one({"id": job["assigned_crew_id"]}, {"_id": 0})
+    
+    invoices = await db.invoices.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    work_orders = await db.work_orders.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    expenses = await db.expenses.find({"job_id": job_id}, {"_id": 0}).to_list(1000)
+    daily_logs = await db.daily_logs.find({"job_id": job_id}, {"_id": 0}).sort("date", -1).to_list(100)
+    logs = await db.job_logs.find({"job_id": job_id}, {"_id": 0}).to_list(1000)
+    photos = await db.job_photos.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    communications = await db.communications.find({"job_id": job_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    # Calculate job costing
+    total_labor_cost = sum(
+        sum(entry.get("hours", 0) * entry.get("hourly_rate", 0) for entry in log.get("labor_entries", []))
+        for log in daily_logs
+    )
+    total_equipment_cost = sum(
+        sum(entry.get("quantity", 1) * entry.get("daily_rate", 0) for entry in log.get("equipment_entries", []))
+        for log in daily_logs
+    )
+    total_material_cost = sum(
+        sum(entry.get("quantity", 0) * entry.get("unit_cost", 0) for entry in log.get("material_entries", []))
+        for log in daily_logs
+    )
+    total_expenses = sum(exp.get("amount", 0) for exp in expenses)
+    
+    total_cost = total_labor_cost + total_equipment_cost + total_material_cost + total_expenses
+    total_invoiced = sum(inv.get("total", 0) for inv in invoices)
+    total_paid = sum(p.get("amount", 0) for p in job.get("payments", []))
+    
+    # Phase costs
+    phase_costs = {}
+    for log in daily_logs:
+        phase = log.get("phase", "general")
+        if phase not in phase_costs:
+            phase_costs[phase] = {"labor": 0, "equipment": 0, "materials": 0}
+        phase_costs[phase]["labor"] += sum(e.get("hours", 0) * e.get("hourly_rate", 0) for e in log.get("labor_entries", []))
+        phase_costs[phase]["equipment"] += sum(e.get("quantity", 1) * e.get("daily_rate", 0) for e in log.get("equipment_entries", []))
+        phase_costs[phase]["materials"] += sum(e.get("quantity", 0) * e.get("unit_cost", 0) for e in log.get("material_entries", []))
+    
+    budget = job.get("budget_amount", 0)
+    is_over_budget = total_cost > budget if budget > 0 else False
+    
+    return {
+        "job": job,
+        "crew": crew,
+        "invoices": invoices,
+        "work_orders": work_orders,
+        "expenses": expenses,
+        "daily_logs": daily_logs,
+        "logs": sorted(logs, key=lambda x: x.get("created_at", ""), reverse=True),
+        "photos": photos,
+        "communications": communications,
+        "costing": {
+            "labor_cost": total_labor_cost,
+            "equipment_cost": total_equipment_cost,
+            "material_cost": total_material_cost,
+            "other_expenses": total_expenses,
+            "total_cost": total_cost,
+            "total_invoiced": total_invoiced,
+            "total_paid": total_paid,
+            "outstanding": total_invoiced - total_paid,
+            "gross_margin": total_invoiced - total_cost,
+            "margin_percentage": round((total_invoiced - total_cost) / total_invoiced * 100, 2) if total_invoiced > 0 else 0,
+            "budget": budget,
+            "is_over_budget": is_over_budget,
+            "budget_variance": total_cost - budget if budget > 0 else 0,
+            "phase_costs": phase_costs
+        }
+    }
+
 # ============ CREWS ROUTES ============
 
-@api_router.post("/crews", response_model=CrewResponse)
+@api_router.post("/crews")
 async def create_crew(crew_data: CrewCreate, current_user: dict = Depends(get_current_user)):
     crew_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     
+    members = []
+    for m in crew_data.members:
+        member = m.model_dump()
+        if not member.get("id"):
+            member["id"] = str(uuid.uuid4())
+        members.append(member)
+    
     crew_doc = {
         "id": crew_id,
-        **crew_data.model_dump(),
-        "members": [m.model_dump() for m in crew_data.members],
+        "name": crew_data.name,
+        "members": members,
+        "specialty": crew_data.specialty,
+        "status": crew_data.status,
+        "home_base": crew_data.home_base,
         "created_at": now,
         "updated_at": now
     }
     await db.crews.insert_one(crew_doc)
-    return CrewResponse(**crew_doc)
+    crew_doc.pop("_id", None)
+    return crew_doc
 
-@api_router.get("/crews", response_model=List[CrewResponse])
-async def get_crews(current_user: dict = Depends(get_current_user)):
-    crews = await db.crews.find({}, {"_id": 0}).to_list(100)
-    return [CrewResponse(**crew) for crew in crews]
+@api_router.get("/crews")
+async def get_crews(status: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    query = {}
+    if status:
+        query["status"] = status
+    crews = await db.crews.find(query, {"_id": 0}).to_list(100)
+    return crews
 
-@api_router.get("/crews/{crew_id}", response_model=CrewResponse)
+@api_router.get("/crews/{crew_id}")
 async def get_crew(crew_id: str, current_user: dict = Depends(get_current_user)):
     crew = await db.crews.find_one({"id": crew_id}, {"_id": 0})
     if not crew:
         raise HTTPException(status_code=404, detail="Crew not found")
-    return CrewResponse(**crew)
+    return crew
 
-@api_router.put("/crews/{crew_id}", response_model=CrewResponse)
+@api_router.put("/crews/{crew_id}")
 async def update_crew(crew_id: str, crew_data: CrewUpdate, current_user: dict = Depends(get_current_user)):
     update_data = {k: v for k, v in crew_data.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     
     if "members" in update_data:
-        update_data["members"] = [m.model_dump() if hasattr(m, 'model_dump') else m for m in update_data["members"]]
+        members = []
+        for m in update_data["members"]:
+            member = m.model_dump() if hasattr(m, 'model_dump') else m
+            if not member.get("id"):
+                member["id"] = str(uuid.uuid4())
+            members.append(member)
+        update_data["members"] = members
     
     await db.crews.update_one({"id": crew_id}, {"$set": update_data})
     crew = await db.crews.find_one({"id": crew_id}, {"_id": 0})
-    if not crew:
-        raise HTTPException(status_code=404, detail="Crew not found")
-    return CrewResponse(**crew)
+    return crew
 
 @api_router.delete("/crews/{crew_id}")
 async def delete_crew(crew_id: str, current_user: dict = Depends(get_current_user)):
@@ -479,9 +630,142 @@ async def delete_crew(crew_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail="Crew not found")
     return {"message": "Crew deleted"}
 
+# ============ WORK ORDERS ROUTES ============
+
+@api_router.post("/work-orders")
+async def create_work_order(wo_data: WorkOrderCreate, current_user: dict = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": wo_data.job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    wo_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    tasks = []
+    for task in wo_data.tasks:
+        t = task.model_dump() if hasattr(task, 'model_dump') else task
+        if not t.get("id"):
+            t["id"] = str(uuid.uuid4())
+        tasks.append(t)
+    
+    checkpoints = [c.model_dump() if hasattr(c, 'model_dump') else c for c in wo_data.checkpoints]
+    
+    wo_doc = {
+        "id": wo_id,
+        "job_id": wo_data.job_id,
+        "job_title": job["title"],
+        "phase": wo_data.phase,
+        "tasks": tasks,
+        "materials_needed": wo_data.materials_needed,
+        "equipment_needed": wo_data.equipment_needed,
+        "checkpoints": checkpoints,
+        "completion_percentage": 0,
+        "status": "pending",
+        "notes": wo_data.notes,
+        "created_at": now,
+        "updated_at": now,
+        "created_by": current_user["id"]
+    }
+    await db.work_orders.insert_one(wo_doc)
+    wo_doc.pop("_id", None)
+    return wo_doc
+
+@api_router.get("/work-orders")
+async def get_work_orders(job_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    query = {}
+    if job_id:
+        query["job_id"] = job_id
+    work_orders = await db.work_orders.find(query, {"_id": 0}).to_list(1000)
+    return work_orders
+
+@api_router.get("/work-orders/{wo_id}")
+async def get_work_order(wo_id: str, current_user: dict = Depends(get_current_user)):
+    wo = await db.work_orders.find_one({"id": wo_id}, {"_id": 0})
+    if not wo:
+        raise HTTPException(status_code=404, detail="Work order not found")
+    return wo
+
+@api_router.put("/work-orders/{wo_id}/tasks")
+async def update_work_order_tasks(wo_id: str, tasks: List[Dict], current_user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    
+    for task in tasks:
+        if task.get("is_completed") and not task.get("completed_at"):
+            task["completed_at"] = now
+            task["completed_by"] = current_user["name"]
+    
+    completed = sum(1 for t in tasks if t.get("is_completed", False))
+    percentage = (completed / len(tasks) * 100) if tasks else 0
+    status = "completed" if percentage == 100 else "in_progress" if percentage > 0 else "pending"
+    
+    await db.work_orders.update_one(
+        {"id": wo_id},
+        {"$set": {"tasks": tasks, "completion_percentage": percentage, "status": status, "updated_at": now}}
+    )
+    return {"message": "Tasks updated", "completion_percentage": percentage, "status": status}
+
+@api_router.put("/work-orders/{wo_id}/checkpoints")
+async def update_work_order_checkpoints(wo_id: str, checkpoints: List[Dict], current_user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    
+    for cp in checkpoints:
+        if cp.get("is_verified") and not cp.get("verified_at"):
+            cp["verified_at"] = now
+            cp["verified_by"] = current_user["name"]
+    
+    await db.work_orders.update_one({"id": wo_id}, {"$set": {"checkpoints": checkpoints, "updated_at": now}})
+    return {"message": "Checkpoints updated"}
+
+# ============ DAILY LOGS ROUTES ============
+
+@api_router.post("/daily-logs")
+async def create_daily_log(log_data: DailyLogCreate, current_user: dict = Depends(get_current_user)):
+    log_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    log_doc = {
+        "id": log_id,
+        **log_data.model_dump(),
+        "labor_entries": [e.model_dump() for e in log_data.labor_entries],
+        "equipment_entries": [e.model_dump() for e in log_data.equipment_entries],
+        "material_entries": [e.model_dump() for e in log_data.material_entries],
+        "created_by": current_user["name"],
+        "created_at": now
+    }
+    await db.daily_logs.insert_one(log_doc)
+    log_doc.pop("_id", None)
+    return log_doc
+
+@api_router.get("/daily-logs")
+async def get_daily_logs(job_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    query = {}
+    if job_id:
+        query["job_id"] = job_id
+    logs = await db.daily_logs.find(query, {"_id": 0}).sort("date", -1).to_list(1000)
+    return logs
+
+@api_router.get("/daily-logs/{log_id}")
+async def get_daily_log(log_id: str, current_user: dict = Depends(get_current_user)):
+    log = await db.daily_logs.find_one({"id": log_id}, {"_id": 0})
+    if not log:
+        raise HTTPException(status_code=404, detail="Daily log not found")
+    return log
+
+@api_router.put("/daily-logs/{log_id}")
+async def update_daily_log(log_id: str, log_data: DailyLogCreate, current_user: dict = Depends(get_current_user)):
+    update_data = log_data.model_dump()
+    update_data["labor_entries"] = [e.model_dump() if hasattr(e, 'model_dump') else e for e in log_data.labor_entries]
+    update_data["equipment_entries"] = [e.model_dump() if hasattr(e, 'model_dump') else e for e in log_data.equipment_entries]
+    update_data["material_entries"] = [e.model_dump() if hasattr(e, 'model_dump') else e for e in log_data.material_entries]
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.daily_logs.update_one({"id": log_id}, {"$set": update_data})
+    log = await db.daily_logs.find_one({"id": log_id}, {"_id": 0})
+    return log
+
 # ============ INVOICES ROUTES ============
 
-@api_router.post("/invoices", response_model=InvoiceResponse)
+@api_router.post("/invoices")
 async def create_invoice(invoice_data: InvoiceCreate, current_user: dict = Depends(get_current_user)):
     job = await db.jobs.find_one({"id": invoice_data.job_id}, {"_id": 0})
     if not job:
@@ -491,24 +775,32 @@ async def create_invoice(invoice_data: InvoiceCreate, current_user: dict = Depen
     now = datetime.now(timezone.utc)
     invoice_number = f"INV-{now.strftime('%Y%m%d')}-{invoice_id[:8].upper()}"
     
-    # Calculate totals
-    subtotal = sum(item["quantity"] * item["unit_price"] for item in job.get("line_items", []))
-    taxable_subtotal = sum(
-        item["quantity"] * item["unit_price"] 
-        for item in job.get("line_items", []) 
-        if item.get("is_taxable", True)
-    )
+    # Use custom line items or job line items
+    if invoice_data.custom_line_items:
+        line_items = [item.model_dump() for item in invoice_data.custom_line_items]
+    elif invoice_data.include_line_items:
+        line_items = job.get("line_items", [])
+        if invoice_data.phase:
+            line_items = [item for item in line_items if item.get("phase") == invoice_data.phase or item.get("phase") == "general"]
+    else:
+        line_items = []
+    
+    subtotal = sum(item["quantity"] * item["unit_price"] for item in line_items)
+    taxable_subtotal = sum(item["quantity"] * item["unit_price"] for item in line_items if item.get("is_taxable", True))
     tax_amount = round(taxable_subtotal * (invoice_data.tax_rate / 100), 2)
     total = round(subtotal + tax_amount, 2)
     
     invoice_doc = {
         "id": invoice_id,
         "invoice_number": invoice_number,
+        "invoice_type": invoice_data.invoice_type,
         "job_id": invoice_data.job_id,
         "customer_name": job["customer_name"],
         "customer_email": job.get("customer_email"),
-        "address": job["address"],
-        "line_items": job.get("line_items", []),
+        "property_address": job.get("property_address"),
+        "billing_address": job.get("billing_address") or job.get("property_address"),
+        "line_items": line_items,
+        "phase": invoice_data.phase,
         "subtotal": subtotal,
         "tax_rate": invoice_data.tax_rate,
         "tax_amount": tax_amount,
@@ -516,28 +808,70 @@ async def create_invoice(invoice_data: InvoiceCreate, current_user: dict = Depen
         "status": "draft",
         "due_date": invoice_data.due_date,
         "notes": invoice_data.notes,
+        "insurance_claim": job.get("insurance_claim"),
         "created_at": now.isoformat(),
-        "created_by": current_user["id"]
+        "created_by": current_user["id"],
+        "followup_schedule": [],
+        "last_followup": None
     }
+    
+    # Generate follow-up schedule
+    due_date = datetime.strptime(invoice_data.due_date, "%Y-%m-%d")
+    for days in FOLLOWUP_SCHEDULE:
+        followup_date = due_date + timedelta(days=days)
+        invoice_doc["followup_schedule"].append({
+            "day": days,
+            "date": followup_date.strftime("%Y-%m-%d"),
+            "completed": False,
+            "notes": ""
+        })
+    
     await db.invoices.insert_one(invoice_doc)
-    return InvoiceResponse(**invoice_doc)
+    invoice_doc.pop("_id", None)
+    return invoice_doc
 
-@api_router.get("/invoices", response_model=List[InvoiceResponse])
-async def get_invoices(current_user: dict = Depends(get_current_user)):
-    invoices = await db.invoices.find({}, {"_id": 0}).to_list(1000)
-    return [InvoiceResponse(**inv) for inv in invoices]
+@api_router.get("/invoices")
+async def get_invoices(job_id: Optional[str] = None, status: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    query = {}
+    if job_id:
+        query["job_id"] = job_id
+    if status:
+        query["status"] = status
+    invoices = await db.invoices.find(query, {"_id": 0}).to_list(1000)
+    return invoices
 
-@api_router.get("/invoices/{invoice_id}", response_model=InvoiceResponse)
+@api_router.get("/invoices/{invoice_id}")
 async def get_invoice(invoice_id: str, current_user: dict = Depends(get_current_user)):
     invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
-    return InvoiceResponse(**invoice)
+    return invoice
 
 @api_router.put("/invoices/{invoice_id}/status")
 async def update_invoice_status(invoice_id: str, status: str, current_user: dict = Depends(get_current_user)):
-    await db.invoices.update_one({"id": invoice_id}, {"$set": {"status": status}})
+    await db.invoices.update_one({"id": invoice_id}, {"$set": {"status": status, "updated_at": datetime.now(timezone.utc).isoformat()}})
     return {"message": "Status updated"}
+
+@api_router.put("/invoices/{invoice_id}/followup")
+async def update_invoice_followup(invoice_id: str, day: int, notes: str = "", current_user: dict = Depends(get_current_user)):
+    invoice = await db.invoices.find_one({"id": invoice_id}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    schedule = invoice.get("followup_schedule", [])
+    for item in schedule:
+        if item["day"] == day:
+            item["completed"] = True
+            item["notes"] = notes
+            item["completed_at"] = datetime.now(timezone.utc).isoformat()
+            item["completed_by"] = current_user["name"]
+            break
+    
+    await db.invoices.update_one(
+        {"id": invoice_id}, 
+        {"$set": {"followup_schedule": schedule, "last_followup": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Follow-up recorded"}
 
 @api_router.get("/invoices/{invoice_id}/pdf")
 async def get_invoice_pdf(invoice_id: str, current_user: dict = Depends(get_current_user)):
@@ -550,25 +884,29 @@ async def get_invoice_pdf(invoice_id: str, current_user: dict = Depends(get_curr
     styles = getSampleStyleSheet()
     elements = []
     
-    # Header
     elements.append(Paragraph(f"<b>INVOICE {invoice['invoice_number']}</b>", styles['Title']))
+    elements.append(Paragraph(f"Type: {invoice.get('invoice_type', 'standard').title()}", styles['Normal']))
     elements.append(Spacer(1, 0.25*inch))
     elements.append(Paragraph(f"Customer: {invoice['customer_name']}", styles['Normal']))
-    elements.append(Paragraph(f"Address: {invoice['address']}", styles['Normal']))
+    elements.append(Paragraph(f"Property: {invoice.get('property_address', '')}", styles['Normal']))
+    if invoice.get('billing_address') and invoice.get('billing_address') != invoice.get('property_address'):
+        elements.append(Paragraph(f"Bill To: {invoice['billing_address']}", styles['Normal']))
     elements.append(Paragraph(f"Due Date: {invoice['due_date']}", styles['Normal']))
+    
+    if invoice.get('insurance_claim'):
+        claim = invoice['insurance_claim']
+        if claim.get('carrier'):
+            elements.append(Spacer(1, 0.25*inch))
+            elements.append(Paragraph(f"<b>Insurance Information</b>", styles['Normal']))
+            elements.append(Paragraph(f"Carrier: {claim.get('carrier', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Claim #: {claim.get('claim_number', '')}", styles['Normal']))
+    
     elements.append(Spacer(1, 0.5*inch))
     
-    # Line items table
     table_data = [["Description", "Qty", "Unit", "Price", "Total"]]
     for item in invoice.get("line_items", []):
         total = item["quantity"] * item["unit_price"]
-        table_data.append([
-            item["description"],
-            str(item["quantity"]),
-            item["unit"],
-            f"${item['unit_price']:.2f}",
-            f"${total:.2f}"
-        ])
+        table_data.append([item["description"], str(item["quantity"]), item["unit"], f"${item['unit_price']:.2f}", f"${total:.2f}"])
     
     table = Table(table_data, colWidths=[3*inch, 0.75*inch, 0.75*inch, 1*inch, 1*inch])
     table.setStyle(TableStyle([
@@ -584,81 +922,18 @@ async def get_invoice_pdf(invoice_id: str, current_user: dict = Depends(get_curr
     elements.append(table)
     elements.append(Spacer(1, 0.5*inch))
     
-    # Totals
     elements.append(Paragraph(f"<b>Subtotal:</b> ${invoice['subtotal']:.2f}", styles['Normal']))
-    elements.append(Paragraph(f"<b>Tax:</b> ${invoice['tax_amount']:.2f}", styles['Normal']))
+    elements.append(Paragraph(f"<b>Tax ({invoice.get('tax_rate', 0)}%):</b> ${invoice['tax_amount']:.2f}", styles['Normal']))
     elements.append(Paragraph(f"<b>Total:</b> ${invoice['total']:.2f}", styles['Heading2']))
     
     doc.build(elements)
     buffer.seek(0)
     
-    return StreamingResponse(
-        buffer,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={invoice['invoice_number']}.pdf"}
-    )
-
-# ============ WORK ORDERS ROUTES ============
-
-@api_router.post("/work-orders", response_model=WorkOrderResponse)
-async def create_work_order(wo_data: WorkOrderCreate, current_user: dict = Depends(get_current_user)):
-    job = await db.jobs.find_one({"id": wo_data.job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    wo_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    
-    tasks = [task.model_dump() for task in wo_data.tasks] if wo_data.tasks else []
-    
-    wo_doc = {
-        "id": wo_id,
-        "job_id": wo_data.job_id,
-        "job_title": job["title"],
-        "tasks": tasks,
-        "materials_needed": wo_data.materials_needed,
-        "completion_percentage": 0,
-        "status": "pending",
-        "notes": wo_data.notes,
-        "created_at": now,
-        "updated_at": now,
-        "created_by": current_user["id"]
-    }
-    await db.work_orders.insert_one(wo_doc)
-    return WorkOrderResponse(**wo_doc)
-
-@api_router.get("/work-orders", response_model=List[WorkOrderResponse])
-async def get_work_orders(current_user: dict = Depends(get_current_user)):
-    work_orders = await db.work_orders.find({}, {"_id": 0}).to_list(1000)
-    return [WorkOrderResponse(**wo) for wo in work_orders]
-
-@api_router.get("/work-orders/{wo_id}", response_model=WorkOrderResponse)
-async def get_work_order(wo_id: str, current_user: dict = Depends(get_current_user)):
-    wo = await db.work_orders.find_one({"id": wo_id}, {"_id": 0})
-    if not wo:
-        raise HTTPException(status_code=404, detail="Work order not found")
-    return WorkOrderResponse(**wo)
-
-@api_router.put("/work-orders/{wo_id}/tasks")
-async def update_work_order_tasks(wo_id: str, tasks: List[Dict], current_user: dict = Depends(get_current_user)):
-    completed = sum(1 for t in tasks if t.get("is_completed", False))
-    percentage = (completed / len(tasks) * 100) if tasks else 0
-    status = "completed" if percentage == 100 else "in_progress" if percentage > 0 else "pending"
-    
-    await db.work_orders.update_one(
-        {"id": wo_id},
-        {"$set": {
-            "tasks": tasks,
-            "completion_percentage": percentage,
-            "status": status,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }}
-    )
-    return {"message": "Tasks updated", "completion_percentage": percentage}
+    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={invoice['invoice_number']}.pdf"})
 
 # ============ EXPENSES ROUTES ============
 
-@api_router.post("/expenses", response_model=ExpenseResponse)
+@api_router.post("/expenses")
 async def create_expense(expense_data: ExpenseCreate, current_user: dict = Depends(get_current_user)):
     expense_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -670,14 +945,18 @@ async def create_expense(expense_data: ExpenseCreate, current_user: dict = Depen
         "created_at": now,
         "created_by": current_user["id"]
     }
-    del expense_doc["receipt_data"]  # Don't store base64 in main doc
+    del expense_doc["receipt_data"]
     await db.expenses.insert_one(expense_doc)
-    return ExpenseResponse(**expense_doc)
+    expense_doc.pop("_id", None)
+    return expense_doc
 
-@api_router.get("/expenses", response_model=List[ExpenseResponse])
-async def get_expenses(current_user: dict = Depends(get_current_user)):
-    expenses = await db.expenses.find({}, {"_id": 0}).to_list(1000)
-    return [ExpenseResponse(**exp) for exp in expenses]
+@api_router.get("/expenses")
+async def get_expenses(job_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    query = {}
+    if job_id:
+        query["job_id"] = job_id
+    expenses = await db.expenses.find(query, {"_id": 0}).to_list(1000)
+    return expenses
 
 @api_router.put("/expenses/{expense_id}/status")
 async def update_expense_status(expense_id: str, status: str, current_user: dict = Depends(get_current_user)):
@@ -691,47 +970,52 @@ async def delete_expense(expense_id: str, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"message": "Expense deleted"}
 
-# ============ JOB LOGS ROUTES ============
-
-@api_router.post("/job-logs", response_model=JobLogResponse)
-async def create_job_log(log_data: JobLogCreate, current_user: dict = Depends(get_current_user)):
-    log_id = str(uuid.uuid4())
+@api_router.post("/jobs/{job_id}/expenses")
+async def add_job_expense(job_id: str, expense_data: ExpenseCreate, current_user: dict = Depends(get_current_user)):
+    expense_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     
-    photo_url = None
-    if log_data.photo_data:
-        # Store photo data (in production, upload to S3/cloud storage)
-        photo_url = f"/api/photos/{log_id}"
-        await db.photos.insert_one({"id": log_id, "data": log_data.photo_data})
+    expense_doc = {
+        "id": expense_id,
+        **expense_data.model_dump(),
+        "job_id": job_id,
+        "status": "pending",
+        "created_at": now,
+        "created_by": current_user["id"]
+    }
+    if "receipt_data" in expense_doc:
+        del expense_doc["receipt_data"]
     
-    log_doc = {
-        "id": log_id,
-        "job_id": log_data.job_id,
-        "entry_type": log_data.entry_type,
-        "content": log_data.content,
-        "photo_url": photo_url,
+    await db.expenses.insert_one(expense_doc)
+    expense_doc.pop("_id", None)
+    return expense_doc
+
+# ============ COMMUNICATION LOG ROUTES ============
+
+@api_router.post("/communications")
+async def create_communication(comm_data: CommunicationLogCreate, current_user: dict = Depends(get_current_user)):
+    comm_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    comm_doc = {
+        "id": comm_id,
+        **comm_data.model_dump(),
         "created_by": current_user["name"],
         "created_at": now
     }
-    await db.job_logs.insert_one(log_doc)
-    return JobLogResponse(**log_doc)
+    await db.communications.insert_one(comm_doc)
+    comm_doc.pop("_id", None)
+    return comm_doc
 
-@api_router.get("/job-logs/{job_id}", response_model=List[JobLogResponse])
-async def get_job_logs(job_id: str, current_user: dict = Depends(get_current_user)):
-    logs = await db.job_logs.find({"job_id": job_id}, {"_id": 0}).to_list(1000)
-    return [JobLogResponse(**log) for log in logs]
+@api_router.get("/communications")
+async def get_communications(job_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    query = {}
+    if job_id:
+        query["job_id"] = job_id
+    comms = await db.communications.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return comms
 
-@api_router.delete("/job-logs/{log_id}")
-async def delete_job_log(log_id: str, current_user: dict = Depends(get_current_user)):
-    await db.job_logs.delete_one({"id": log_id})
-    await db.photos.delete_one({"id": log_id})
-    return {"message": "Log deleted"}
-
-# ============ PHOTOS ROUTES ============
-
-class PhotoUpload(BaseModel):
-    photo_data: str
-    caption: Optional[str] = ""
+# ============ PHOTOS & LOGS ROUTES ============
 
 @api_router.post("/jobs/{job_id}/photos")
 async def upload_job_photo(job_id: str, photo: PhotoUpload, current_user: dict = Depends(get_current_user)):
@@ -759,139 +1043,39 @@ async def delete_photo(photo_id: str, current_user: dict = Depends(get_current_u
     await db.job_photos.delete_one({"id": photo_id})
     return {"message": "Photo deleted"}
 
-# ============ JOB DETAILS ROUTES ============
+class JobLogCreate(BaseModel):
+    job_id: str
+    entry_type: str
+    content: str
+    photo_data: Optional[str] = None
 
-@api_router.get("/jobs/{job_id}/details")
-async def get_job_details(job_id: str, current_user: dict = Depends(get_current_user)):
-    """Get comprehensive job details including related data"""
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    # Get related data
-    crew = None
-    if job.get("assigned_crew_id"):
-        crew = await db.crews.find_one({"id": job["assigned_crew_id"]}, {"_id": 0})
-    
-    invoices = await db.invoices.find({"job_id": job_id}, {"_id": 0}).to_list(100)
-    work_orders = await db.work_orders.find({"job_id": job_id}, {"_id": 0}).to_list(100)
-    expenses = await db.expenses.find({"job_id": job_id}, {"_id": 0}).to_list(100)
-    logs = await db.job_logs.find({"job_id": job_id}, {"_id": 0}).to_list(100)
-    photos = await db.job_photos.find({"job_id": job_id}, {"_id": 0}).to_list(100)
-    
-    # Calculate job costing
-    total_expenses = sum(exp.get("amount", 0) for exp in expenses)
-    total_invoiced = sum(inv.get("total", 0) for inv in invoices)
-    total_paid = sum(inv.get("total", 0) for inv in invoices if inv.get("status") == "paid")
-    
-    expense_breakdown = {}
-    for exp in expenses:
-        cat = exp.get("category", "other")
-        expense_breakdown[cat] = expense_breakdown.get(cat, 0) + exp.get("amount", 0)
-    
-    return {
-        "job": job,
-        "crew": crew,
-        "invoices": invoices,
-        "work_orders": work_orders,
-        "expenses": expenses,
-        "logs": sorted(logs, key=lambda x: x.get("created_at", ""), reverse=True),
-        "photos": photos,
-        "costing": {
-            "total_expenses": total_expenses,
-            "total_invoiced": total_invoiced,
-            "total_paid": total_paid,
-            "outstanding": total_invoiced - total_paid,
-            "profit_margin": total_paid - total_expenses,
-            "expense_breakdown": expense_breakdown
-        }
-    }
-
-@api_router.post("/jobs/{job_id}/line-items")
-async def add_job_line_item(job_id: str, item: JobLineItem, current_user: dict = Depends(get_current_user)):
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    line_items = job.get("line_items", [])
-    line_items.append(item.model_dump())
-    
-    total = sum(i["quantity"] * i["unit_price"] for i in line_items)
-    
-    await db.jobs.update_one(
-        {"id": job_id},
-        {"$set": {"line_items": line_items, "total_amount": total, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    return {"message": "Line item added", "total_amount": total}
-
-@api_router.delete("/jobs/{job_id}/line-items/{item_index}")
-async def delete_job_line_item(job_id: str, item_index: int, current_user: dict = Depends(get_current_user)):
-    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    line_items = job.get("line_items", [])
-    if 0 <= item_index < len(line_items):
-        line_items.pop(item_index)
-    
-    total = sum(i["quantity"] * i["unit_price"] for i in line_items)
-    
-    await db.jobs.update_one(
-        {"id": job_id},
-        {"$set": {"line_items": line_items, "total_amount": total, "updated_at": datetime.now(timezone.utc).isoformat()}}
-    )
-    return {"message": "Line item deleted", "total_amount": total}
-
-@api_router.post("/jobs/{job_id}/expenses")
-async def add_job_expense(job_id: str, expense_data: ExpenseCreate, current_user: dict = Depends(get_current_user)):
-    """Add an expense directly linked to a job"""
-    expense_id = str(uuid.uuid4())
+@api_router.post("/job-logs")
+async def create_job_log(log_data: JobLogCreate, current_user: dict = Depends(get_current_user)):
+    log_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     
-    expense_doc = {
-        "id": expense_id,
-        **expense_data.model_dump(),
-        "job_id": job_id,
-        "status": "pending",
-        "created_at": now,
-        "created_by": current_user["id"]
-    }
-    if "receipt_data" in expense_doc:
-        del expense_doc["receipt_data"]
+    photo_url = None
+    if log_data.photo_data:
+        photo_url = f"/api/photos/{log_id}"
+        await db.photos.insert_one({"id": log_id, "data": log_data.photo_data})
     
-    await db.expenses.insert_one(expense_doc)
-    return ExpenseResponse(**expense_doc)
-
-# ============ TRANSACTIONS ROUTES ============
-
-@api_router.post("/transactions", response_model=TransactionResponse)
-async def create_transaction(tx_data: TransactionCreate, current_user: dict = Depends(get_current_user)):
-    tx_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-    
-    tx_doc = {
-        "id": tx_id,
-        **tx_data.model_dump(),
-        "is_matched": bool(tx_data.matched_invoice_id or tx_data.matched_expense_id),
+    log_doc = {
+        "id": log_id,
+        "job_id": log_data.job_id,
+        "entry_type": log_data.entry_type,
+        "content": log_data.content,
+        "photo_url": photo_url,
+        "created_by": current_user["name"],
         "created_at": now
     }
-    await db.transactions.insert_one(tx_doc)
-    return TransactionResponse(**tx_doc)
+    await db.job_logs.insert_one(log_doc)
+    log_doc.pop("_id", None)
+    return log_doc
 
-@api_router.get("/transactions", response_model=List[TransactionResponse])
-async def get_transactions(current_user: dict = Depends(get_current_user)):
-    transactions = await db.transactions.find({}, {"_id": 0}).to_list(1000)
-    return [TransactionResponse(**tx) for tx in transactions]
-
-@api_router.put("/transactions/{tx_id}/match")
-async def match_transaction(tx_id: str, invoice_id: Optional[str] = None, expense_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
-    update = {
-        "matched_invoice_id": invoice_id,
-        "matched_expense_id": expense_id,
-        "is_matched": bool(invoice_id or expense_id)
-    }
-    await db.transactions.update_one({"id": tx_id}, {"$set": update})
-    return {"message": "Transaction matched"}
+@api_router.get("/job-logs/{job_id}")
+async def get_job_logs(job_id: str, current_user: dict = Depends(get_current_user)):
+    logs = await db.job_logs.find({"job_id": job_id}, {"_id": 0}).to_list(1000)
+    return logs
 
 # ============ REPORTS ROUTES ============
 
@@ -904,12 +1088,46 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     
     total_revenue = sum(inv["total"] for inv in invoices if inv.get("status") == "paid")
     total_expenses = sum(exp["amount"] for exp in expenses)
-    outstanding_invoices = sum(inv["total"] for inv in invoices if inv.get("status") in ["sent", "draft"])
+    outstanding_invoices = sum(inv["total"] for inv in invoices if inv.get("status") in ["sent", "draft", "overdue"])
     
     jobs_by_status = {}
+    jobs_by_phase = {}
     for job in jobs:
         status = job.get("status", "pending")
+        phase = job.get("current_phase", "intake")
         jobs_by_status[status] = jobs_by_status.get(status, 0) + 1
+        jobs_by_phase[phase] = jobs_by_phase.get(phase, 0) + 1
+    
+    # Overdue invoices
+    today = datetime.now(timezone.utc).date()
+    overdue_invoices = []
+    for inv in invoices:
+        if inv.get("status") not in ["paid", "cancelled"]:
+            due_date = datetime.strptime(inv["due_date"], "%Y-%m-%d").date()
+            if due_date < today:
+                days_overdue = (today - due_date).days
+                overdue_invoices.append({
+                    "invoice_number": inv["invoice_number"],
+                    "customer_name": inv["customer_name"],
+                    "total": inv["total"],
+                    "due_date": inv["due_date"],
+                    "days_overdue": days_overdue
+                })
+    
+    # Jobs over budget
+    jobs_over_budget = []
+    for job in jobs:
+        if job.get("budget_amount", 0) > 0:
+            job_expenses = await db.expenses.find({"job_id": job["id"]}, {"_id": 0}).to_list(1000)
+            total_cost = sum(e["amount"] for e in job_expenses)
+            if total_cost > job["budget_amount"]:
+                jobs_over_budget.append({
+                    "id": job["id"],
+                    "title": job["title"],
+                    "budget": job["budget_amount"],
+                    "actual": total_cost,
+                    "variance": total_cost - job["budget_amount"]
+                })
     
     return {
         "total_jobs": len(jobs),
@@ -921,8 +1139,61 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         "gross_profit": total_revenue - total_expenses,
         "outstanding_invoices": outstanding_invoices,
         "jobs_by_status": jobs_by_status,
+        "jobs_by_phase": jobs_by_phase,
         "pending_invoices": len([inv for inv in invoices if inv.get("status") == "sent"]),
+        "overdue_invoices": overdue_invoices,
+        "overdue_invoices_count": len(overdue_invoices),
+        "jobs_over_budget": jobs_over_budget,
         "recent_jobs": jobs[-5:][::-1] if jobs else []
+    }
+
+@api_router.get("/reports/collections")
+async def get_collections_report(current_user: dict = Depends(get_current_user)):
+    """Get collection follow-up report"""
+    invoices = await db.invoices.find({"status": {"$nin": ["paid", "cancelled"]}}, {"_id": 0}).to_list(1000)
+    
+    today = datetime.now(timezone.utc).date()
+    followups_due = []
+    aging_buckets = {"current": 0, "1-30": 0, "31-60": 0, "61-90": 0, "90+": 0}
+    
+    for inv in invoices:
+        due_date = datetime.strptime(inv["due_date"], "%Y-%m-%d").date()
+        days_outstanding = (today - due_date).days
+        
+        # Aging buckets
+        if days_outstanding <= 0:
+            aging_buckets["current"] += inv["total"]
+        elif days_outstanding <= 30:
+            aging_buckets["1-30"] += inv["total"]
+        elif days_outstanding <= 60:
+            aging_buckets["31-60"] += inv["total"]
+        elif days_outstanding <= 90:
+            aging_buckets["61-90"] += inv["total"]
+        else:
+            aging_buckets["90+"] += inv["total"]
+        
+        # Check follow-up schedule
+        for followup in inv.get("followup_schedule", []):
+            if not followup.get("completed"):
+                followup_date = datetime.strptime(followup["date"], "%Y-%m-%d").date()
+                if followup_date <= today:
+                    followups_due.append({
+                        "invoice_id": inv["id"],
+                        "invoice_number": inv["invoice_number"],
+                        "customer_name": inv["customer_name"],
+                        "total": inv["total"],
+                        "due_date": inv["due_date"],
+                        "followup_day": followup["day"],
+                        "followup_date": followup["date"],
+                        "days_overdue": days_outstanding
+                    })
+                break
+    
+    return {
+        "aging_buckets": aging_buckets,
+        "total_outstanding": sum(aging_buckets.values()),
+        "followups_due": sorted(followups_due, key=lambda x: x["days_overdue"], reverse=True),
+        "followups_due_count": len(followups_due)
     }
 
 @api_router.get("/reports/job-costing/{job_id}")
@@ -933,31 +1204,63 @@ async def get_job_costing(job_id: str, current_user: dict = Depends(get_current_
     
     expenses = await db.expenses.find({"job_id": job_id}, {"_id": 0}).to_list(1000)
     invoices = await db.invoices.find({"job_id": job_id}, {"_id": 0}).to_list(10)
+    daily_logs = await db.daily_logs.find({"job_id": job_id}, {"_id": 0}).to_list(100)
     
-    labor_cost = sum(exp["amount"] for exp in expenses if exp.get("category") == "labor")
-    equipment_cost = sum(exp["amount"] for exp in expenses if exp.get("category") == "equipment")
-    material_cost = sum(exp["amount"] for exp in expenses if exp.get("category") == "materials")
-    overhead = sum(exp["amount"] for exp in expenses if exp.get("category") == "overhead")
-    total_cost = labor_cost + equipment_cost + material_cost + overhead
+    # Calculate from daily logs
+    labor_cost = sum(
+        sum(e.get("hours", 0) * e.get("hourly_rate", 0) for e in log.get("labor_entries", []))
+        for log in daily_logs
+    )
+    equipment_cost = sum(
+        sum(e.get("quantity", 1) * e.get("daily_rate", 0) for e in log.get("equipment_entries", []))
+        for log in daily_logs
+    )
+    material_cost = sum(
+        sum(e.get("quantity", 0) * e.get("unit_cost", 0) for e in log.get("material_entries", []))
+        for log in daily_logs
+    )
+    other_expenses = sum(exp["amount"] for exp in expenses)
     
+    total_cost = labor_cost + equipment_cost + material_cost + other_expenses
     revenue = sum(inv["total"] for inv in invoices if inv.get("status") == "paid")
+    total_invoiced = sum(inv["total"] for inv in invoices)
     gross_margin = revenue - total_cost
-    margin_percentage = (gross_margin / revenue * 100) if revenue > 0 else 0
+    
+    # Phase breakdown
+    phase_costs = {}
+    for log in daily_logs:
+        phase = log.get("phase", "general")
+        if phase not in phase_costs:
+            phase_costs[phase] = {"labor": 0, "equipment": 0, "materials": 0, "total": 0}
+        phase_labor = sum(e.get("hours", 0) * e.get("hourly_rate", 0) for e in log.get("labor_entries", []))
+        phase_equip = sum(e.get("quantity", 1) * e.get("daily_rate", 0) for e in log.get("equipment_entries", []))
+        phase_mat = sum(e.get("quantity", 0) * e.get("unit_cost", 0) for e in log.get("material_entries", []))
+        phase_costs[phase]["labor"] += phase_labor
+        phase_costs[phase]["equipment"] += phase_equip
+        phase_costs[phase]["materials"] += phase_mat
+        phase_costs[phase]["total"] += phase_labor + phase_equip + phase_mat
+    
+    budget = job.get("budget_amount", 0)
     
     return {
         "job_id": job_id,
         "job_title": job["title"],
+        "budget": budget,
         "revenue": revenue,
+        "total_invoiced": total_invoiced,
         "costs": {
             "labor": labor_cost,
             "equipment": equipment_cost,
             "materials": material_cost,
-            "overhead": overhead,
+            "other": other_expenses,
             "total": total_cost
         },
         "gross_margin": gross_margin,
-        "margin_percentage": round(margin_percentage, 2),
-        "is_profitable": gross_margin > 0
+        "margin_percentage": round((gross_margin / revenue * 100) if revenue > 0 else 0, 2),
+        "is_profitable": gross_margin > 0,
+        "is_over_budget": total_cost > budget if budget > 0 else False,
+        "budget_variance": total_cost - budget if budget > 0 else 0,
+        "phase_costs": phase_costs
     }
 
 @api_router.get("/reports/profit-loss")
@@ -1005,34 +1308,16 @@ async def get_cash_flow_forecast(current_user: dict = Depends(get_current_user))
     invoices = await db.invoices.find({"status": {"$in": ["sent", "draft"]}}, {"_id": 0}).to_list(1000)
     expenses = await db.expenses.find({}, {"_id": 0}).to_list(1000)
     
-    now = datetime.now(timezone.utc)
-    
-    # Calculate expected income from outstanding invoices
-    expected_income_30 = sum(inv["total"] for inv in invoices)
+    expected_income = sum(inv["total"] for inv in invoices)
     avg_monthly_expenses = sum(exp["amount"] for exp in expenses) / 3 if expenses else 0
     
     forecasts = [
-        {
-            "period": "30 days",
-            "expected_income": expected_income_30 * 0.5,
-            "expected_expenses": avg_monthly_expenses,
-            "net_cash_flow": (expected_income_30 * 0.5) - avg_monthly_expenses
-        },
-        {
-            "period": "60 days",
-            "expected_income": expected_income_30 * 0.8,
-            "expected_expenses": avg_monthly_expenses * 2,
-            "net_cash_flow": (expected_income_30 * 0.8) - (avg_monthly_expenses * 2)
-        },
-        {
-            "period": "90 days",
-            "expected_income": expected_income_30,
-            "expected_expenses": avg_monthly_expenses * 3,
-            "net_cash_flow": expected_income_30 - (avg_monthly_expenses * 3)
-        }
+        {"period": "30 days", "expected_income": expected_income * 0.5, "expected_expenses": avg_monthly_expenses, "net_cash_flow": (expected_income * 0.5) - avg_monthly_expenses},
+        {"period": "60 days", "expected_income": expected_income * 0.8, "expected_expenses": avg_monthly_expenses * 2, "net_cash_flow": (expected_income * 0.8) - (avg_monthly_expenses * 2)},
+        {"period": "90 days", "expected_income": expected_income, "expected_expenses": avg_monthly_expenses * 3, "net_cash_flow": expected_income - (avg_monthly_expenses * 3)}
     ]
     
-    return {"forecasts": forecasts, "outstanding_invoices_total": expected_income_30}
+    return {"forecasts": forecasts, "outstanding_invoices_total": expected_income}
 
 # ============ EXPORT ROUTES ============
 
@@ -1043,41 +1328,39 @@ async def export_quickbooks(data_type: str, current_user: dict = Depends(get_cur
     
     if data_type == "invoices":
         invoices = await db.invoices.find({}, {"_id": 0}).to_list(1000)
-        writer.writerow(["Invoice Number", "Customer", "Date", "Due Date", "Amount", "Status"])
+        writer.writerow(["Invoice Number", "Customer", "Property Address", "Date", "Due Date", "Subtotal", "Tax", "Total", "Status", "Claim Number"])
         for inv in invoices:
+            claim_num = inv.get("insurance_claim", {}).get("claim_number", "") if inv.get("insurance_claim") else ""
             writer.writerow([
-                inv["invoice_number"],
-                inv["customer_name"],
-                inv["created_at"][:10],
-                inv["due_date"],
-                inv["total"],
-                inv["status"]
+                inv["invoice_number"], inv["customer_name"], inv.get("property_address", ""),
+                inv["created_at"][:10], inv["due_date"], inv["subtotal"], inv["tax_amount"],
+                inv["total"], inv["status"], claim_num
             ])
     elif data_type == "expenses":
         expenses = await db.expenses.find({}, {"_id": 0}).to_list(1000)
-        writer.writerow(["Date", "Vendor", "Description", "Category", "Amount", "Taxable"])
+        writer.writerow(["Date", "Vendor", "Description", "Category", "Job ID", "Amount", "Taxable", "Status"])
         for exp in expenses:
             writer.writerow([
-                exp["date"],
-                exp.get("vendor", ""),
-                exp["description"],
-                exp["category"],
-                exp["amount"],
-                "Yes" if exp.get("is_taxable") else "No"
+                exp["date"], exp.get("vendor", ""), exp["description"], exp["category"],
+                exp.get("job_id", ""), exp["amount"], "Yes" if exp.get("is_taxable") else "No", exp.get("status", "pending")
+            ])
+    elif data_type == "job_costs":
+        jobs = await db.jobs.find({}, {"_id": 0}).to_list(1000)
+        writer.writerow(["Job ID", "Title", "Customer", "Status", "Phase", "Budget", "Total Amount", "Created"])
+        for job in jobs:
+            writer.writerow([
+                job["id"], job["title"], job["customer_name"], job["status"],
+                job.get("current_phase", ""), job.get("budget_amount", 0), job.get("total_amount", 0), job["created_at"][:10]
             ])
     else:
         raise HTTPException(status_code=400, detail="Invalid data type")
     
     output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={data_type}_export.csv"}
-    )
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={data_type}_export.csv"})
 
 # ============ AI ROUTES ============
 
-@api_router.post("/ai/generate-message", response_model=AIMessageResponse)
+@api_router.post("/ai/generate-message")
 async def generate_ai_message(request: AIMessageRequest, current_user: dict = Depends(get_current_user)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     
@@ -1089,13 +1372,19 @@ async def generate_ai_message(request: AIMessageRequest, current_user: dict = De
     if request.job_id:
         job = await db.jobs.find_one({"id": request.job_id}, {"_id": 0})
         if job:
-            job_context = f"Job: {job['title']} at {job['address']}. Status: {job['status']}. Scope: {job['scope']}"
+            job_context = f"Job: {job['title']} at {job.get('property_address', '')}. Status: {job['status']}. Phase: {job.get('current_phase', '')}. Loss type: {job.get('loss_type', '')}. Scope: {job['scope']}"
+            if job.get("insurance_claim"):
+                claim = job["insurance_claim"]
+                job_context += f". Insurance: {claim.get('carrier', '')} Claim #{claim.get('claim_number', '')}"
     
     message_prompts = {
         "scheduling": f"Generate a short, professional text message to {request.customer_name} about scheduling their restoration job. {job_context}",
         "arrival": f"Generate a short, professional text message to {request.customer_name} notifying them that the crew is arriving soon. {job_context}",
+        "delay": f"Generate a professional, empathetic text message to {request.customer_name} explaining a delay in their restoration work. {job_context}",
         "progress": f"Generate a short, professional text message to {request.customer_name} with a progress update on their restoration work. {job_context}",
-        "payment": f"Generate a short, professional but friendly text message to {request.customer_name} as a payment reminder. {job_context}",
+        "payment": f"Generate a professional but friendly text message to {request.customer_name} as a payment reminder. {job_context}",
+        "insurance_update": f"Generate a professional message to {request.customer_name} providing an update on their insurance claim status. {job_context}",
+        "completion": f"Generate a professional message to {request.customer_name} notifying them their restoration work is complete. {job_context}",
         "custom": f"Generate a professional message for {request.customer_name}. Context: {request.custom_context or job_context}"
     }
     
@@ -1104,13 +1393,13 @@ async def generate_ai_message(request: AIMessageRequest, current_user: dict = De
     chat = LlmChat(
         api_key=api_key,
         session_id=f"msg-{uuid.uuid4()}",
-        system_message="You are a professional assistant for a restoration contracting company. Generate short, friendly, and professional text messages for customer communication. Keep messages under 160 characters when possible."
+        system_message="You are a professional assistant for a restoration contracting company. Generate short, friendly, and professional text messages for customer communication. Use restoration industry terminology appropriately. Keep messages under 160 characters when possible."
     ).with_model("openai", "gpt-4o")
     
     user_message = UserMessage(text=prompt)
     response = await chat.send_message(user_message)
     
-    return AIMessageResponse(message=response, message_type=request.message_type)
+    return {"message": response, "message_type": request.message_type}
 
 @api_router.post("/ai/analyze-compliance")
 async def analyze_compliance(current_user: dict = Depends(get_current_user)):
@@ -1120,26 +1409,29 @@ async def analyze_compliance(current_user: dict = Depends(get_current_user)):
     if not api_key:
         raise HTTPException(status_code=500, detail="AI service not configured")
     
-    # Gather recent data for analysis
     invoices = await db.invoices.find({}, {"_id": 0}).to_list(100)
     expenses = await db.expenses.find({}, {"_id": 0}).to_list(100)
-    transactions = await db.transactions.find({}, {"_id": 0}).to_list(100)
+    jobs = await db.jobs.find({}, {"_id": 0}).to_list(100)
     
-    # Prepare summary for AI
-    data_summary = {
-        "invoice_count": len(invoices),
-        "expense_count": len(expenses),
-        "unmatched_transactions": len([t for t in transactions if not t.get("is_matched")]),
-        "overdue_invoices": len([i for i in invoices if i.get("status") == "overdue"]),
-        "pending_expenses": len([e for e in expenses if e.get("status") == "pending"]),
-        "duplicate_check": "checking for duplicate expenses..."
-    }
+    # Check for issues
+    issues = []
     
-    # Check for potential duplicates
+    # Overdue invoices
+    today = datetime.now(timezone.utc).date()
+    overdue = [inv for inv in invoices if inv.get("status") not in ["paid", "cancelled"] and datetime.strptime(inv["due_date"], "%Y-%m-%d").date() < today]
+    if overdue:
+        issues.append(f"{len(overdue)} overdue invoices totaling ${sum(inv['total'] for inv in overdue):,.2f}")
+    
+    # Jobs without insurance info
+    jobs_missing_insurance = [j for j in jobs if j.get("loss_type") != "other" and not j.get("insurance_claim", {}).get("claim_number")]
+    if jobs_missing_insurance:
+        issues.append(f"{len(jobs_missing_insurance)} jobs may be missing insurance claim information")
+    
+    # Duplicate expenses
     expense_hashes = {}
     duplicates = []
     for exp in expenses:
-        key = f"{exp['date']}_{exp['amount']}_{exp['vendor'] if exp.get('vendor') else ''}"
+        key = f"{exp['date']}_{exp['amount']}_{exp.get('vendor', '')}"
         if key in expense_hashes:
             duplicates.append(exp["description"])
         expense_hashes[key] = True
@@ -1147,18 +1439,18 @@ async def analyze_compliance(current_user: dict = Depends(get_current_user)):
     chat = LlmChat(
         api_key=api_key,
         session_id=f"compliance-{uuid.uuid4()}",
-        system_message="You are a financial compliance analyst for a restoration company. Analyze the provided data and identify potential issues, risks, or compliance concerns. Be concise and actionable."
+        system_message="You are a financial compliance analyst for a restoration company. Analyze the provided data and identify potential issues, risks, or compliance concerns. Focus on cash flow, collections, and documentation completeness."
     ).with_model("openai", "gpt-4o")
     
-    prompt = f"""Analyze this restoration company's financial data for compliance issues:
-    - Total invoices: {data_summary['invoice_count']}
-    - Total expenses: {data_summary['expense_count']}
-    - Unmatched bank transactions: {data_summary['unmatched_transactions']}
-    - Overdue invoices: {data_summary['overdue_invoices']}
-    - Pending expenses needing approval: {data_summary['pending_expenses']}
-    - Potential duplicate expenses: {len(duplicates)} found
+    prompt = f"""Analyze this restoration company's operations for compliance issues:
+    - Total jobs: {len(jobs)}
+    - Active jobs: {len([j for j in jobs if j.get('status') in ['scheduled', 'in_progress']])}
+    - Total invoices: {len(invoices)}
+    - Overdue invoices: {len(overdue)}
+    - Potential duplicate expenses: {len(duplicates)}
+    - Known issues: {'; '.join(issues) if issues else 'None identified'}
     
-    Provide a brief compliance report with any concerns and recommendations."""
+    Provide a brief compliance report with concerns and recommendations."""
     
     user_message = UserMessage(text=prompt)
     response = await chat.send_message(user_message)
@@ -1166,12 +1458,9 @@ async def analyze_compliance(current_user: dict = Depends(get_current_user)):
     return {
         "analysis": response,
         "potential_duplicates": duplicates,
-        "unmatched_transactions": data_summary["unmatched_transactions"],
-        "action_items": [
-            f"Review {len(duplicates)} potential duplicate expenses" if duplicates else None,
-            f"Match {data_summary['unmatched_transactions']} bank transactions" if data_summary['unmatched_transactions'] > 0 else None,
-            f"Follow up on {data_summary['overdue_invoices']} overdue invoices" if data_summary['overdue_invoices'] > 0 else None
-        ]
+        "overdue_invoices_count": len(overdue),
+        "issues_found": issues,
+        "action_items": [f"Review {len(duplicates)} potential duplicate expenses" if duplicates else None, f"Follow up on {len(overdue)} overdue invoices" if overdue else None, f"Add insurance info for {len(jobs_missing_insurance)} jobs" if jobs_missing_insurance else None]
     }
 
 @api_router.post("/ai/forecast-cashflow")
@@ -1190,11 +1479,12 @@ async def ai_forecast_cashflow(current_user: dict = Depends(get_current_user)):
     recent_revenue = sum(inv["total"] for inv in invoices if inv.get("status") == "paid")
     total_expenses = sum(exp["amount"] for exp in expenses)
     active_jobs = len([j for j in jobs if j.get("status") in ["scheduled", "in_progress"]])
+    pipeline_value = sum(j.get("estimated_amount", 0) for j in jobs if j.get("status") in ["pending", "scheduled"])
     
     chat = LlmChat(
         api_key=api_key,
         session_id=f"forecast-{uuid.uuid4()}",
-        system_message="You are a financial analyst for a restoration company. Provide realistic cash flow forecasts and business insights based on the data provided."
+        system_message="You are a financial analyst for a restoration company. Provide realistic cash flow forecasts and business insights based on the data provided. Consider typical restoration industry payment cycles."
     ).with_model("openai", "gpt-4o")
     
     prompt = f"""Based on this restoration company data, provide a cash flow analysis:
@@ -1202,6 +1492,7 @@ async def ai_forecast_cashflow(current_user: dict = Depends(get_current_user)):
     - Recent paid revenue: ${recent_revenue:,.2f}
     - Total expenses: ${total_expenses:,.2f}
     - Active jobs in progress: {active_jobs}
+    - Pipeline value (pending jobs): ${pipeline_value:,.2f}
     
     Provide insights on cash flow health and recommendations for the next 90 days."""
     
@@ -1210,12 +1501,7 @@ async def ai_forecast_cashflow(current_user: dict = Depends(get_current_user)):
     
     return {
         "ai_analysis": response,
-        "metrics": {
-            "outstanding_invoices": outstanding,
-            "recent_revenue": recent_revenue,
-            "total_expenses": total_expenses,
-            "active_jobs": active_jobs
-        }
+        "metrics": {"outstanding_invoices": outstanding, "recent_revenue": recent_revenue, "total_expenses": total_expenses, "active_jobs": active_jobs, "pipeline_value": pipeline_value}
     }
 
 # ============ HEALTH CHECK ============
