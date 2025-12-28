@@ -164,19 +164,32 @@ class EnhancedFeaturesAPITester:
         # This is a minimal 1x1 pixel PNG image
         test_image_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
         
-        # Try multipart form data approach
+        # Use form data for multipart/form-data
+        url = f"{self.api_url}/jobs/{self.created_job_id}/photos"
+        headers = {'Authorization': f'Bearer {self.token}'}
+        
         form_data = {
             'photo_data': test_image_base64,
             'caption': 'Test photo for enhanced features'
         }
         
-        success, data, status = self.make_request('POST', f'jobs/{self.created_job_id}/photos', form_data, 200)
-        
-        if success and 'id' in data:
-            self.created_photo_id = data['id']
-            self.log_test("Upload Photo", True, f"Photo uploaded with ID: {self.created_photo_id}")
-        else:
-            self.log_test("Upload Photo", False, "", f"Photo upload failed with status {status}")
+        try:
+            response = requests.post(url, data=form_data, headers=headers)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                if 'id' in data:
+                    self.created_photo_id = data['id']
+                    self.log_test("Upload Photo", True, f"Photo uploaded with ID: {self.created_photo_id}")
+                else:
+                    self.log_test("Upload Photo", False, "", "No photo ID in response")
+                    success = False
+            else:
+                self.log_test("Upload Photo", False, "", f"Photo upload failed with status {response.status_code}")
+        except Exception as e:
+            self.log_test("Upload Photo", False, "", f"Photo upload error: {str(e)}")
+            success = False
         
         return success
 
