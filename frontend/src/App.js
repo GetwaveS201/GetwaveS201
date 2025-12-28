@@ -375,10 +375,37 @@ const JobsPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: "", customer_name: "", customer_phone: "", customer_email: "",
-    address: "", scope: "", priority: "medium", status: "pending",
-    assigned_crew_id: "", scheduled_date: "", estimated_completion: "", notes: ""
+    property_address: "", billing_address: "", scope: "", priority: "medium", 
+    status: "pending", current_phase: "intake", loss_type: "water", loss_date: "",
+    assigned_crew_id: "", project_manager: "", scheduled_date: "", estimated_completion: "",
+    estimated_amount: 0, budget_amount: 0, notes: "",
+    insurance_claim: {
+      carrier: "", adjuster_name: "", adjuster_phone: "", adjuster_email: "",
+      claim_number: "", policy_number: "", deductible: 0, status: "pending",
+      date_of_loss: "", approved_amount: 0, depreciation_withheld: 0, notes: ""
+    }
   });
+  const [showInsurance, setShowInsurance] = useState(false);
   const navigate = useNavigate();
+
+  const LOSS_TYPES = [
+    { value: "water", label: "Water Damage", icon: Droplets },
+    { value: "fire", label: "Fire Damage", icon: Flame },
+    { value: "mold", label: "Mold Remediation", icon: Bug },
+    { value: "storm", label: "Storm Damage", icon: CloudRain },
+    { value: "sewage", label: "Sewage Backup", icon: AlertTriangle },
+    { value: "biohazard", label: "Biohazard", icon: AlertTriangle },
+    { value: "vandalism", label: "Vandalism", icon: AlertTriangle },
+    { value: "other", label: "Other", icon: Wrench }
+  ];
+
+  const JOB_PHASES = [
+    { value: "intake", label: "Intake" },
+    { value: "emergency_services", label: "Emergency Services" },
+    { value: "drying_remediation", label: "Drying/Remediation" },
+    { value: "repairs_rebuild", label: "Repairs/Rebuild" },
+    { value: "closeout", label: "Closeout" }
+  ];
 
   const loadData = useCallback(async () => {
     try {
@@ -400,14 +427,46 @@ const JobsPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API}/jobs`, formData);
+      const payload = {
+        ...formData,
+        estimated_amount: parseFloat(formData.estimated_amount) || 0,
+        budget_amount: parseFloat(formData.budget_amount) || 0,
+        insurance_claim: showInsurance ? {
+          ...formData.insurance_claim,
+          deductible: parseFloat(formData.insurance_claim.deductible) || 0,
+          approved_amount: parseFloat(formData.insurance_claim.approved_amount) || 0,
+          depreciation_withheld: parseFloat(formData.insurance_claim.depreciation_withheld) || 0
+        } : null
+      };
+      await axios.post(`${API}/jobs`, payload);
       toast.success("Job created!");
       setDialogOpen(false);
       loadData();
-      setFormData({ title: "", customer_name: "", customer_phone: "", customer_email: "", address: "", scope: "", priority: "medium", status: "pending", assigned_crew_id: "", scheduled_date: "", estimated_completion: "", notes: "" });
+      resetForm();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to create job");
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: "", customer_name: "", customer_phone: "", customer_email: "",
+      property_address: "", billing_address: "", scope: "", priority: "medium", 
+      status: "pending", current_phase: "intake", loss_type: "water", loss_date: "",
+      assigned_crew_id: "", project_manager: "", scheduled_date: "", estimated_completion: "",
+      estimated_amount: 0, budget_amount: 0, notes: "",
+      insurance_claim: {
+        carrier: "", adjuster_name: "", adjuster_phone: "", adjuster_email: "",
+        claim_number: "", policy_number: "", deductible: 0, status: "pending",
+        date_of_loss: "", approved_amount: 0, depreciation_withheld: 0, notes: ""
+      }
+    });
+    setShowInsurance(false);
+  };
+
+  const getLossTypeIcon = (type) => {
+    const found = LOSS_TYPES.find(l => l.value === type);
+    return found ? found.icon : Wrench;
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
@@ -417,106 +476,270 @@ const JobsPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="page-title">Jobs</h1>
-          <p className="text-slate-500 mt-1">Manage your restoration jobs</p>
+          <p className="text-slate-500 mt-1">Manage restoration jobs from intake to closeout</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button className="btn-accent gap-2" data-testid="create-job-btn">
               <Plus className="w-4 h-4" /> New Job
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Job</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Job Title</Label>
-                  <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Water Damage - Kitchen" required data-testid="job-title-input" />
-                </div>
-                <div>
-                  <Label>Customer Name</Label>
-                  <Input value={formData.customer_name} onChange={e => setFormData({...formData, customer_name: e.target.value})} placeholder="John Smith" required data-testid="job-customer-input" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Phone</Label>
-                  <Input value={formData.customer_phone} onChange={e => setFormData({...formData, customer_phone: e.target.value})} placeholder="(555) 123-4567" required data-testid="job-phone-input" />
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input type="email" value={formData.customer_email} onChange={e => setFormData({...formData, customer_email: e.target.value})} placeholder="john@email.com" data-testid="job-email-input" />
-                </div>
-              </div>
-              <div>
-                <Label>Address</Label>
-                <Input value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="123 Main St, City, ST 12345" required data-testid="job-address-input" />
-              </div>
-              <div>
-                <Label>Scope of Work</Label>
-                <Textarea value={formData.scope} onChange={e => setFormData({...formData, scope: e.target.value})} placeholder="Describe the restoration work needed..." rows={3} required data-testid="job-scope-input" />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label>Priority</Label>
-                  <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v})}>
-                    <SelectTrigger data-testid="job-priority-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Status</Label>
-                  <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
-                    <SelectTrigger data-testid="job-status-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="scheduled">Scheduled</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Assign Crew</Label>
-                  <Select value={formData.assigned_crew_id} onValueChange={v => setFormData({...formData, assigned_crew_id: v})}>
-                    <SelectTrigger data-testid="job-crew-select"><SelectValue placeholder="Select crew" /></SelectTrigger>
-                    <SelectContent>
-                      {crews.map(crew => (
-                        <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Loss Information */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-orange-500" /> Loss Information
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label>Loss Type *</Label>
+                    <Select value={formData.loss_type} onValueChange={v => setFormData({...formData, loss_type: v})}>
+                      <SelectTrigger data-testid="job-loss-type"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {LOSS_TYPES.map(type => (
+                          <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Date of Loss</Label>
+                    <Input type="date" value={formData.loss_date} onChange={e => setFormData({...formData, loss_date: e.target.value})} data-testid="job-loss-date" />
+                  </div>
+                  <div>
+                    <Label>Current Phase</Label>
+                    <Select value={formData.current_phase} onValueChange={v => setFormData({...formData, current_phase: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {JOB_PHASES.map(phase => (
+                          <SelectItem key={phase.value} value={phase.value}>{phase.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Scheduled Date</Label>
-                  <Input type="date" value={formData.scheduled_date} onChange={e => setFormData({...formData, scheduled_date: e.target.value})} data-testid="job-date-input" />
+
+              <Separator />
+
+              {/* Customer Information */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <User className="w-4 h-4 text-orange-500" /> Customer Information
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Job Title *</Label>
+                    <Input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Water Damage - Kitchen" required data-testid="job-title-input" />
+                  </div>
+                  <div>
+                    <Label>Customer Name *</Label>
+                    <Input value={formData.customer_name} onChange={e => setFormData({...formData, customer_name: e.target.value})} placeholder="John Smith" required data-testid="job-customer-input" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Phone *</Label>
+                    <Input value={formData.customer_phone} onChange={e => setFormData({...formData, customer_phone: e.target.value})} placeholder="(555) 123-4567" required data-testid="job-phone-input" />
+                  </div>
+                  <div>
+                    <Label>Email</Label>
+                    <Input type="email" value={formData.customer_email} onChange={e => setFormData({...formData, customer_email: e.target.value})} placeholder="john@email.com" data-testid="job-email-input" />
+                  </div>
                 </div>
                 <div>
-                  <Label>Est. Completion</Label>
-                  <Input type="date" value={formData.estimated_completion} onChange={e => setFormData({...formData, estimated_completion: e.target.value})} />
+                  <Label>Property Address *</Label>
+                  <Input value={formData.property_address} onChange={e => setFormData({...formData, property_address: e.target.value})} placeholder="123 Main St, City, ST 12345" required data-testid="job-address-input" />
+                </div>
+                <div>
+                  <Label>Billing Address (if different)</Label>
+                  <Input value={formData.billing_address} onChange={e => setFormData({...formData, billing_address: e.target.value})} placeholder="Leave blank if same as property" />
                 </div>
               </div>
+
+              <Separator />
+
+              {/* Job Details */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-orange-500" /> Job Details
+                </h3>
+                <div>
+                  <Label>Scope of Work *</Label>
+                  <Textarea value={formData.scope} onChange={e => setFormData({...formData, scope: e.target.value})} placeholder="Describe the restoration work needed..." rows={3} required data-testid="job-scope-input" />
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <Label>Priority</Label>
+                    <Select value={formData.priority} onValueChange={v => setFormData({...formData, priority: v})}>
+                      <SelectTrigger data-testid="job-priority-select"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Status</Label>
+                    <Select value={formData.status} onValueChange={v => setFormData({...formData, status: v})}>
+                      <SelectTrigger data-testid="job-status-select"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="on_hold">On Hold</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Assign Crew</Label>
+                    <Select value={formData.assigned_crew_id} onValueChange={v => setFormData({...formData, assigned_crew_id: v})}>
+                      <SelectTrigger data-testid="job-crew-select"><SelectValue placeholder="Select crew" /></SelectTrigger>
+                      <SelectContent>
+                        {crews.map(crew => (
+                          <SelectItem key={crew.id} value={crew.id}>{crew.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Project Manager</Label>
+                    <Input value={formData.project_manager} onChange={e => setFormData({...formData, project_manager: e.target.value})} placeholder="PM Name" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Scheduled Start</Label>
+                    <Input type="date" value={formData.scheduled_date} onChange={e => setFormData({...formData, scheduled_date: e.target.value})} data-testid="job-date-input" />
+                  </div>
+                  <div>
+                    <Label>Est. Completion</Label>
+                    <Input type="date" value={formData.estimated_completion} onChange={e => setFormData({...formData, estimated_completion: e.target.value})} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Estimated Amount ($)</Label>
+                    <Input type="number" step="0.01" value={formData.estimated_amount} onChange={e => setFormData({...formData, estimated_amount: e.target.value})} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <Label>Budget Amount ($)</Label>
+                    <Input type="number" step="0.01" value={formData.budget_amount} onChange={e => setFormData({...formData, budget_amount: e.target.value})} placeholder="0.00" />
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Insurance Information (Collapsible) */}
+              <div className="space-y-4">
+                <button type="button" onClick={() => setShowInsurance(!showInsurance)} className="flex items-center gap-2 font-semibold text-slate-900">
+                  <Shield className="w-4 h-4 text-orange-500" />
+                  Insurance Claim Information
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showInsurance ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {showInsurance && (
+                  <div className="space-y-4 pl-6 border-l-2 border-orange-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Insurance Carrier</Label>
+                        <Input value={formData.insurance_claim.carrier} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, carrier: e.target.value}})} placeholder="State Farm" data-testid="insurance-carrier" />
+                      </div>
+                      <div>
+                        <Label>Claim Number</Label>
+                        <Input value={formData.insurance_claim.claim_number} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, claim_number: e.target.value}})} placeholder="CLM-123456" data-testid="insurance-claim-number" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Policy Number</Label>
+                        <Input value={formData.insurance_claim.policy_number} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, policy_number: e.target.value}})} placeholder="POL-123456" />
+                      </div>
+                      <div>
+                        <Label>Claim Status</Label>
+                        <Select value={formData.insurance_claim.status} onValueChange={v => setFormData({...formData, insurance_claim: {...formData.insurance_claim, status: v}})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="submitted">Submitted</SelectItem>
+                            <SelectItem value="approved">Approved</SelectItem>
+                            <SelectItem value="partial_approved">Partial Approved</SelectItem>
+                            <SelectItem value="denied">Denied</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="closed">Closed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label>Adjuster Name</Label>
+                        <Input value={formData.insurance_claim.adjuster_name} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, adjuster_name: e.target.value}})} placeholder="Jane Doe" />
+                      </div>
+                      <div>
+                        <Label>Adjuster Phone</Label>
+                        <Input value={formData.insurance_claim.adjuster_phone} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, adjuster_phone: e.target.value}})} placeholder="(555) 987-6543" />
+                      </div>
+                      <div>
+                        <Label>Adjuster Email</Label>
+                        <Input type="email" value={formData.insurance_claim.adjuster_email} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, adjuster_email: e.target.value}})} placeholder="adjuster@carrier.com" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label>Deductible ($)</Label>
+                        <Input type="number" step="0.01" value={formData.insurance_claim.deductible} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, deductible: e.target.value}})} placeholder="1000.00" />
+                      </div>
+                      <div>
+                        <Label>Approved Amount ($)</Label>
+                        <Input type="number" step="0.01" value={formData.insurance_claim.approved_amount} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, approved_amount: e.target.value}})} placeholder="0.00" />
+                      </div>
+                      <div>
+                        <Label>Depreciation Withheld ($)</Label>
+                        <Input type="number" step="0.01" value={formData.insurance_claim.depreciation_withheld} onChange={e => setFormData({...formData, insurance_claim: {...formData.insurance_claim, depreciation_withheld: e.target.value}})} placeholder="0.00" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <Label>Notes</Label>
                 <Textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Additional notes..." rows={2} data-testid="job-notes-input" />
               </div>
+
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
                 <Button type="submit" className="btn-accent" data-testid="job-submit-btn">Create Job</Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
+      </div>
+
+      {/* Phase Filter Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        <Badge variant="outline" className="cursor-pointer hover:bg-slate-100 px-3 py-1">All Jobs ({jobs.length})</Badge>
+        {[
+          { value: "intake", label: "Intake" },
+          { value: "emergency_services", label: "Emergency" },
+          { value: "drying_remediation", label: "Drying" },
+          { value: "repairs_rebuild", label: "Repairs" },
+          { value: "closeout", label: "Closeout" }
+        ].map(phase => (
+          <Badge key={phase.value} variant="outline" className="cursor-pointer hover:bg-slate-100 px-3 py-1">
+            {phase.label} ({jobs.filter(j => j.current_phase === phase.value).length})
+          </Badge>
+        ))}
       </div>
 
       {jobs.length === 0 ? (
@@ -526,42 +749,57 @@ const JobsPage = () => {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {jobs.map(job => (
-            <Card key={job.id} className="card-hover cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)} data-testid={`job-card-${job.id}`}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold text-slate-900 truncate">{job.title}</h3>
-                      <Badge className={`priority-${job.priority}`}>{job.priority}</Badge>
-                      <Badge className={`status-${job.status}`}>{job.status?.replace('_', ' ')}</Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
-                      <span className="flex items-center gap-1"><User className="w-3 h-3" /> {job.customer_name}</span>
-                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {job.customer_phone}</span>
-                    </div>
-                    <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {job.address}
-                    </p>
-                    {job.scheduled_date && (
-                      <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
-                        <Calendar className="w-3 h-3" /> Scheduled: {job.scheduled_date}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {job.total_amount > 0 && (
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-slate-900">${job.total_amount?.toLocaleString()}</p>
-                        <p className="text-xs text-slate-500">Total Value</p>
+          {jobs.map(job => {
+            const LossIcon = getLossTypeIcon(job.loss_type);
+            return (
+              <Card key={job.id} className="card-hover cursor-pointer" onClick={() => navigate(`/jobs/${job.id}`)} data-testid={`job-card-${job.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex gap-4">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                        job.loss_type === 'water' ? 'bg-blue-100 text-blue-600' :
+                        job.loss_type === 'fire' ? 'bg-red-100 text-red-600' :
+                        job.loss_type === 'mold' ? 'bg-green-100 text-green-600' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        <LossIcon className="w-6 h-6" />
                       </div>
-                    )}
-                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-slate-900 truncate">{job.title}</h3>
+                          <Badge className={`priority-${job.priority}`}>{job.priority}</Badge>
+                          <Badge className={`status-${job.status}`}>{job.status?.replace('_', ' ')}</Badge>
+                          <Badge variant="outline" className="capitalize">{job.current_phase?.replace('_', ' ')}</Badge>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-slate-600">
+                          <span className="flex items-center gap-1"><User className="w-3 h-3" /> {job.customer_name}</span>
+                          <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {job.customer_phone}</span>
+                          {job.insurance_claim?.claim_number && (
+                            <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> {job.insurance_claim.carrier}</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {job.property_address}
+                        </p>
+                        {job.loss_date && (
+                          <p className="text-xs text-slate-400 mt-1">Loss Date: {job.loss_date}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {(job.total_amount > 0 || job.estimated_amount > 0) && (
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-slate-900">${(job.total_amount || job.estimated_amount || 0).toLocaleString()}</p>
+                          <p className="text-xs text-slate-500">{job.total_amount > 0 ? 'Total Value' : 'Estimated'}</p>
+                        </div>
+                      )}
+                      <ChevronRight className="w-5 h-5 text-slate-400" />
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
