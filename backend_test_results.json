@@ -26,13 +26,13 @@
     {
       "test": "Create Job",
       "success": true,
-      "details": "Job created with ID: d9255316-e796-48c5-a589-6cd4677f42dd",
+      "details": "Job created with ID: 1d59b5a7-b4e1-4722-babe-a4af0944be66",
       "error": ""
     },
     {
       "test": "Get Jobs",
       "success": true,
-      "details": "Retrieved 2 jobs",
+      "details": "Retrieved 5 jobs",
       "error": ""
     },
     {
@@ -44,31 +44,31 @@
     {
       "test": "Create Crew",
       "success": true,
-      "details": "Crew created with ID: 3c8366b2-6f35-4309-adc8-111c53e9ddbe",
+      "details": "Crew created with ID: bd6f705d-d132-4c38-88ec-d83a63005e69",
       "error": ""
     },
     {
       "test": "Get Crews",
       "success": true,
-      "details": "Retrieved 2 crews",
+      "details": "Retrieved 3 crews",
       "error": ""
     },
     {
       "test": "Create Invoice",
       "success": true,
-      "details": "Invoice created with ID: 63da7149-68ca-4eab-b1d5-4a0cce6d049e",
+      "details": "Invoice created with ID: 45849f8f-6e6e-405c-be01-8b96cc894c03",
       "error": ""
     },
     {
       "test": "Get Invoices",
       "success": true,
-      "details": "Retrieved 1 invoices",
+      "details": "Retrieved 3 invoices",
       "error": ""
     },
     {
       "test": "Create Work Order",
       "success": true,
-      "details": "Work order created with ID: f1f79ddc-27b9-452a-91f6-480aad53a8a5",
+      "details": "Work order created with ID: 86b688bf-6507-4325-bbac-fc45f7a56cdb",
       "error": ""
     },
     {
@@ -80,19 +80,19 @@
     {
       "test": "Create Expense",
       "success": true,
-      "details": "Expense created with ID: d629c056-4e28-49c1-9c42-5cd458221ef4",
+      "details": "Expense created with ID: 883956dd-c3be-48d6-bd84-b2b93e0a0b9e",
       "error": ""
     },
     {
       "test": "Get Expenses",
       "success": true,
-      "details": "Retrieved 2 expenses",
+      "details": "Retrieved 4 expenses",
       "error": ""
     },
     {
       "test": "Dashboard Stats",
       "success": true,
-      "details": "Dashboard loaded with 2 total jobs",
+      "details": "Dashboard loaded with 5 total jobs",
       "error": ""
     },
     {
@@ -116,7 +116,7 @@
     {
       "test": "AI Message Generation",
       "success": true,
-      "details": "AI message generated: Hi John, we're continuing the restoration at 123 M...",
+      "details": "AI message generated: Hi John! We're progressing with your water damage ...",
       "error": ""
     },
     {
@@ -133,10 +133,10 @@
     }
   ],
   "created_resources": {
-    "job_id": "d9255316-e796-48c5-a589-6cd4677f42dd",
-    "crew_id": "3c8366b2-6f35-4309-adc8-111c53e9ddbe",
-    "invoice_id": "63da7149-68ca-4eab-b1d5-4a0cce6d049e",
-    "work_order_id": "f1f79ddc-27b9-452a-91f6-480aad53a8a5",
-    "expense_id": "d629c056-4e28-49c1-9c42-5cd458221ef4"
+    "job_id": "1d59b5a7-b4e1-4722-babe-a4af0944be66",
+    "crew_id": "bd6f705d-d132-4c38-88ec-d83a63005e69",
+    "invoice_id": "45849f8f-6e6e-405c-be01-8b96cc894c03",
+    "work_order_id": "86b688bf-6507-4325-bbac-fc45f7a56cdb",
+    "expense_id": "883956dd-c3be-48d6-bd84-b2b93e0a0b9e"
   }
 }
