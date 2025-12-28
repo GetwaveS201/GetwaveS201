@@ -1507,6 +1507,667 @@ async def generate_ai_message(request: AIMessageRequest, current_user: dict = De
     
     return {"message": response, "message_type": request.message_type}
 
+
+# ============ ACCOUNTING ASSISTANT ============
+
+class TransactionCategorizationRequest(BaseModel):
+    transactions: List[Dict[str, Any]]
+
+@api_router.post("/ai/accounting/categorize")
+async def ai_categorize_transactions(request: TransactionCategorizationRequest, current_user: dict = Depends(get_current_user)):
+    """AI-powered transaction categorization"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"accounting-{uuid.uuid4()}",
+        system_message="""You are an accounting assistant for a restoration contracting company. 
+        Your job is to categorize transactions into these categories: labor, equipment, materials, overhead, subcontractor, insurance_payment, customer_payment, fuel, office_supplies, utilities, other.
+        Provide clear explanations for each categorization. Flag any unusual, duplicate, or missing transactions.
+        Return JSON format with categorizations and explanations."""
+    ).with_model("openai", "gpt-4o")
+    
+    transactions_text = "\n".join([
+        f"- ${t.get('amount', 0)}: {t.get('description', 'No description')} from {t.get('vendor', 'Unknown')} on {t.get('date', 'Unknown date')}"
+        for t in request.transactions
+    ])
+    
+    prompt = f"""Categorize these transactions for a restoration company and explain your reasoning:
+
+{transactions_text}
+
+Return a JSON object with:
+1. categorizations: array of {{description, suggested_category, explanation, confidence, flags}}
+2. alerts: array of potential issues found
+3. summary: brief overall assessment"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {"analysis": response, "transaction_count": len(request.transactions)}
+
+
+@api_router.post("/ai/accounting/analyze")
+async def ai_accounting_analysis(current_user: dict = Depends(get_current_user)):
+    """Analyze accounting data for issues and recommendations"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    expenses = await db.expenses.find({}, {"_id": 0}).to_list(500)
+    invoices = await db.invoices.find({}, {"_id": 0}).to_list(500)
+    
+    # Check for issues
+    uncategorized = [e for e in expenses if not e.get("category") or e.get("category") == "other"]
+    pending_expenses = [e for e in expenses if e.get("status") == "pending"]
+    
+    # Find potential duplicates
+    duplicates = []
+    seen = {}
+    for e in expenses:
+        key = f"{e.get('date')}_{e.get('amount')}_{e.get('vendor', '')}"
+        if key in seen:
+            duplicates.append({"expense": e["description"], "amount": e["amount"], "date": e["date"]})
+        seen[key] = True
+    
+    # Expense summary by category
+    by_category = {}
+    for e in expenses:
+        cat = e.get("category", "other")
+        by_category[cat] = by_category.get(cat, 0) + e.get("amount", 0)
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"acct-analysis-{uuid.uuid4()}",
+        system_message="""You are an accounting assistant for a restoration contracting company. 
+        Analyze the financial data and provide actionable insights. Focus on:
+        1. Data quality issues
+        2. Potential errors or duplicates
+        3. Month-end close readiness
+        4. Recommended corrective actions
+        Keep response concise and actionable."""
+    ).with_model("openai", "gpt-4o")
+    
+    prompt = f"""Analyze this accounting data:
+
+Expenses by Category:
+{json.dumps(by_category, indent=2)}
+
+Issues Found:
+- Uncategorized expenses: {len(uncategorized)}
+- Pending approval: {len(pending_expenses)}
+- Potential duplicates: {len(duplicates)}
+
+Total invoices: {len(invoices)}
+Paid invoices: {len([i for i in invoices if i.get('status') == 'paid'])}
+
+Provide:
+1. Data quality assessment
+2. Specific issues to fix
+3. Recommendations before month-end close
+4. Ready-to-post entries if any corrections needed"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {
+        "analysis": response,
+        "metrics": {
+            "total_expenses": len(expenses),
+            "uncategorized_count": len(uncategorized),
+            "pending_approval_count": len(pending_expenses),
+            "potential_duplicates": duplicates[:10],
+            "expenses_by_category": by_category
+        }
+    }
+
+
+# ============ PAYMENTS ASSISTANT ============
+
+@api_router.post("/ai/payments/analyze")
+async def ai_payments_analysis(current_user: dict = Depends(get_current_user)):
+    """Analyze payment patterns and suggest follow-up strategies"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    invoices = await db.invoices.find({}, {"_id": 0}).to_list(1000)
+    jobs = await db.jobs.find({}, {"_id": 0}).to_list(1000)
+    
+    today = datetime.now(timezone.utc).date()
+    
+    # Analyze by customer
+    customer_data = {}
+    for inv in invoices:
+        customer = inv.get("customer_name", "Unknown")
+        if customer not in customer_data:
+            customer_data[customer] = {"total_invoiced": 0, "total_paid": 0, "overdue": 0, "invoices": []}
+        customer_data[customer]["total_invoiced"] += inv.get("total", 0)
+        if inv.get("status") == "paid":
+            customer_data[customer]["total_paid"] += inv.get("total", 0)
+        
+        if inv.get("status") not in ["paid", "cancelled"]:
+            try:
+                due_date = datetime.strptime(inv["due_date"], "%Y-%m-%d").date()
+                days_overdue = (today - due_date).days
+                if days_overdue > 0:
+                    customer_data[customer]["overdue"] += inv.get("total", 0)
+                customer_data[customer]["invoices"].append({
+                    "number": inv["invoice_number"],
+                    "total": inv["total"],
+                    "due_date": inv["due_date"],
+                    "days_overdue": days_overdue,
+                    "has_insurance": bool(inv.get("insurance_claim", {}).get("claim_number"))
+                })
+            except:
+                pass
+    
+    # Get customers needing follow-up
+    followup_needed = []
+    for customer, data in customer_data.items():
+        unpaid_invoices = [i for i in data["invoices"] if i["days_overdue"] >= 0]
+        if unpaid_invoices:
+            followup_needed.append({
+                "customer": customer,
+                "outstanding": sum(i["total"] for i in unpaid_invoices),
+                "oldest_days": max(i["days_overdue"] for i in unpaid_invoices),
+                "invoice_count": len(unpaid_invoices),
+                "has_insurance": any(i["has_insurance"] for i in unpaid_invoices)
+            })
+    
+    followup_needed.sort(key=lambda x: x["oldest_days"], reverse=True)
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"payments-{uuid.uuid4()}",
+        system_message="""You are a payments collection specialist for a restoration contracting company.
+        Analyze payment patterns and provide specific follow-up strategies. Consider:
+        - Insurance vs direct-pay customers
+        - Payment history
+        - Days overdue
+        - Escalation timing
+        Provide actionable, specific recommendations."""
+    ).with_model("openai", "gpt-4o")
+    
+    prompt = f"""Analyze these outstanding accounts and recommend follow-up strategies:
+
+Customers Needing Follow-up (top 10):
+{json.dumps(followup_needed[:10], indent=2)}
+
+Total Outstanding: ${sum(f['outstanding'] for f in followup_needed):,.2f}
+Insurance Jobs: {len([f for f in followup_needed if f['has_insurance']])}
+Direct Pay: {len([f for f in followup_needed if not f['has_insurance']])}
+
+Provide:
+1. Priority ranking with reasons
+2. Specific follow-up strategy for each top customer
+3. Recommended timing for escalation
+4. Draft message templates for different scenarios"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {
+        "analysis": response,
+        "followup_list": followup_needed[:20],
+        "summary": {
+            "total_outstanding": sum(f["outstanding"] for f in followup_needed),
+            "customers_needing_followup": len(followup_needed),
+            "over_30_days": len([f for f in followup_needed if f["oldest_days"] > 30]),
+            "over_60_days": len([f for f in followup_needed if f["oldest_days"] > 60]),
+            "over_90_days": len([f for f in followup_needed if f["oldest_days"] > 90])
+        }
+    }
+
+
+@api_router.post("/ai/payments/draft-message")
+async def ai_draft_payment_message(customer_name: str, amount: float, days_overdue: int, has_insurance: bool = False, escalation_level: int = 1, current_user: dict = Depends(get_current_user)):
+    """Generate payment reminder message"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    escalation_context = {
+        1: "friendly first reminder",
+        2: "second notice, slightly more formal",
+        3: "urgent final notice before escalation",
+        4: "final demand before collections"
+    }
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"payment-msg-{uuid.uuid4()}",
+        system_message="You are a professional accounts receivable specialist for a restoration company. Write clear, professional payment reminder messages that maintain good customer relationships while being firm about payment."
+    ).with_model("openai", "gpt-4o")
+    
+    prompt = f"""Write a payment reminder for:
+Customer: {customer_name}
+Amount Due: ${amount:,.2f}
+Days Overdue: {days_overdue}
+Insurance Claim: {'Yes' if has_insurance else 'No - Direct Pay'}
+Escalation Level: {escalation_level} ({escalation_context.get(escalation_level, 'standard')})
+
+Generate both an email and SMS version. Keep SMS under 160 characters."""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {"messages": response, "customer": customer_name, "amount": amount, "escalation_level": escalation_level}
+
+
+# ============ RECONCILIATION ASSISTANT ============
+
+@api_router.post("/ai/reconciliation/analyze")
+async def ai_reconciliation_analysis(current_user: dict = Depends(get_current_user)):
+    """AI-powered bank reconciliation assistant"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    invoices = await db.invoices.find({"status": "paid"}, {"_id": 0}).to_list(500)
+    expenses = await db.expenses.find({}, {"_id": 0}).to_list(500)
+    jobs = await db.jobs.find({}, {"_id": 0}).to_list(500)
+    
+    # Get payments from jobs
+    all_payments = []
+    for job in jobs:
+        for payment in job.get("payments", []):
+            all_payments.append({
+                "type": "payment_received",
+                "amount": payment.get("amount", 0),
+                "date": payment.get("date"),
+                "reference": payment.get("reference"),
+                "job_id": job["id"],
+                "customer": job["customer_name"]
+            })
+    
+    # Summary of expected vs recorded
+    total_invoiced_paid = sum(inv.get("total", 0) for inv in invoices)
+    total_payments_recorded = sum(p["amount"] for p in all_payments)
+    total_expenses = sum(e.get("amount", 0) for e in expenses)
+    
+    # Find unmatched items
+    unmatched_invoices = []
+    for inv in invoices:
+        matching_payments = [p for p in all_payments if abs(p["amount"] - inv["total"]) < 0.01]
+        if not matching_payments:
+            unmatched_invoices.append({
+                "invoice_number": inv["invoice_number"],
+                "amount": inv["total"],
+                "customer": inv["customer_name"]
+            })
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"recon-{uuid.uuid4()}",
+        system_message="""You are a reconciliation specialist for a restoration company.
+        Analyze financial records and identify discrepancies. Focus on:
+        1. Matching deposits to invoices
+        2. Identifying missing or duplicate entries
+        3. Explaining discrepancies
+        4. Providing specific corrective actions
+        Be precise with amounts and references."""
+    ).with_model("openai", "gpt-4o")
+    
+    prompt = f"""Analyze this reconciliation data:
+
+Summary:
+- Total Invoices Marked Paid: ${total_invoiced_paid:,.2f}
+- Total Payments Recorded: ${total_payments_recorded:,.2f}
+- Variance: ${total_invoiced_paid - total_payments_recorded:,.2f}
+- Total Expenses: ${total_expenses:,.2f}
+
+Unmatched Paid Invoices (no matching payment record): {len(unmatched_invoices)}
+{json.dumps(unmatched_invoices[:10], indent=2)}
+
+Provide:
+1. Reconciliation summary
+2. List of exceptions needing attention
+3. Suggested corrections
+4. Steps to resolve each discrepancy"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {
+        "analysis": response,
+        "summary": {
+            "total_invoiced_paid": total_invoiced_paid,
+            "total_payments_recorded": total_payments_recorded,
+            "variance": total_invoiced_paid - total_payments_recorded,
+            "unmatched_invoices": len(unmatched_invoices),
+            "total_expenses": total_expenses
+        },
+        "exceptions": unmatched_invoices[:20]
+    }
+
+
+# ============ CUSTOMER FOLLOW-UP ASSISTANT ============
+
+@api_router.post("/ai/customer/prioritize")
+async def ai_customer_prioritization(current_user: dict = Depends(get_current_user)):
+    """Prioritize customers for follow-up"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    jobs = await db.jobs.find({}, {"_id": 0}).to_list(500)
+    invoices = await db.invoices.find({}, {"_id": 0}).to_list(500)
+    communications = await db.communications.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    
+    today = datetime.now(timezone.utc).date()
+    
+    # Build customer profiles
+    customers = {}
+    for job in jobs:
+        name = job.get("customer_name")
+        if name not in customers:
+            customers[name] = {
+                "name": name,
+                "phone": job.get("customer_phone"),
+                "email": job.get("customer_email"),
+                "jobs": [],
+                "total_value": 0,
+                "last_communication": None,
+                "outstanding_balance": 0,
+                "needs_followup": []
+            }
+        customers[name]["jobs"].append({
+            "title": job["title"],
+            "status": job["status"],
+            "phase": job.get("current_phase"),
+            "value": job.get("total_amount", 0)
+        })
+        customers[name]["total_value"] += job.get("total_amount", 0)
+    
+    # Add invoice data
+    for inv in invoices:
+        name = inv.get("customer_name")
+        if name in customers and inv.get("status") not in ["paid", "cancelled"]:
+            customers[name]["outstanding_balance"] += inv.get("total", 0)
+            try:
+                due_date = datetime.strptime(inv["due_date"], "%Y-%m-%d").date()
+                if due_date < today:
+                    customers[name]["needs_followup"].append(f"Overdue invoice {inv['invoice_number']}")
+            except:
+                pass
+    
+    # Add communication data
+    for comm in communications:
+        job = next((j for j in jobs if j["id"] == comm.get("job_id")), None)
+        if job:
+            name = job.get("customer_name")
+            if name in customers and not customers[name]["last_communication"]:
+                customers[name]["last_communication"] = comm.get("created_at", "")[:10]
+    
+    # Score and sort customers
+    customer_list = list(customers.values())
+    for c in customer_list:
+        score = 0
+        if c["outstanding_balance"] > 0:
+            score += 50
+        if c["needs_followup"]:
+            score += 30
+        if any(j["status"] == "in_progress" for j in c["jobs"]):
+            score += 20
+        c["priority_score"] = score
+    
+    customer_list.sort(key=lambda x: x["priority_score"], reverse=True)
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"customer-{uuid.uuid4()}",
+        system_message="""You are a customer success manager for a restoration company.
+        Analyze customer data and prioritize follow-ups. Consider:
+        - Outstanding payments
+        - Job status and phase
+        - Time since last contact
+        - Customer value
+        Provide specific, actionable follow-up recommendations."""
+    ).with_model("openai", "gpt-4o")
+    
+    top_customers = customer_list[:15]
+    prompt = f"""Prioritize these customers for follow-up:
+
+{json.dumps(top_customers, indent=2, default=str)}
+
+Provide:
+1. Ranked priority list with reasons
+2. Specific follow-up action for each customer
+3. Suggested message or talking points
+4. Best contact method (call, email, text)"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {
+        "analysis": response,
+        "priority_list": top_customers,
+        "summary": {
+            "total_customers": len(customers),
+            "needing_followup": len([c for c in customer_list if c["needs_followup"]]),
+            "with_outstanding_balance": len([c for c in customer_list if c["outstanding_balance"] > 0])
+        }
+    }
+
+
+# ============ FINANCIAL INSIGHTS ASSISTANT ============
+
+@api_router.post("/ai/finance/insights")
+async def ai_financial_insights(current_user: dict = Depends(get_current_user)):
+    """AI-powered financial analysis and KPIs"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    jobs = await db.jobs.find({}, {"_id": 0}).to_list(1000)
+    invoices = await db.invoices.find({}, {"_id": 0}).to_list(1000)
+    expenses = await db.expenses.find({}, {"_id": 0}).to_list(1000)
+    daily_logs = await db.daily_logs.find({}, {"_id": 0}).to_list(1000)
+    
+    today = datetime.now(timezone.utc).date()
+    month_ago = today - timedelta(days=30)
+    
+    # Calculate KPIs
+    total_revenue = sum(inv.get("total", 0) for inv in invoices if inv.get("status") == "paid")
+    total_expenses = sum(e.get("amount", 0) for e in expenses)
+    gross_profit = total_revenue - total_expenses
+    profit_margin = (gross_profit / total_revenue * 100) if total_revenue > 0 else 0
+    
+    # Labor costs from daily logs
+    total_labor_cost = sum(
+        sum(e.get("hours", 0) * e.get("hourly_rate", 0) for e in log.get("labor_entries", []))
+        for log in daily_logs
+    )
+    
+    # Cash position
+    outstanding_ar = sum(inv.get("total", 0) for inv in invoices if inv.get("status") in ["sent", "draft"])
+    
+    # Aging analysis
+    aging = {"current": 0, "30_days": 0, "60_days": 0, "90_days": 0}
+    for inv in invoices:
+        if inv.get("status") not in ["paid", "cancelled"]:
+            try:
+                due_date = datetime.strptime(inv["due_date"], "%Y-%m-%d").date()
+                days = (today - due_date).days
+                if days <= 0:
+                    aging["current"] += inv["total"]
+                elif days <= 30:
+                    aging["30_days"] += inv["total"]
+                elif days <= 60:
+                    aging["60_days"] += inv["total"]
+                else:
+                    aging["90_days"] += inv["total"]
+            except:
+                pass
+    
+    # Job metrics
+    completed_jobs = [j for j in jobs if j.get("status") == "completed"]
+    avg_job_value = sum(j.get("total_amount", 0) for j in completed_jobs) / len(completed_jobs) if completed_jobs else 0
+    
+    kpis = {
+        "total_revenue": total_revenue,
+        "total_expenses": total_expenses,
+        "gross_profit": gross_profit,
+        "profit_margin": round(profit_margin, 1),
+        "total_labor_cost": total_labor_cost,
+        "outstanding_ar": outstanding_ar,
+        "aging": aging,
+        "total_jobs": len(jobs),
+        "completed_jobs": len(completed_jobs),
+        "active_jobs": len([j for j in jobs if j.get("status") in ["scheduled", "in_progress"]]),
+        "avg_job_value": round(avg_job_value, 2),
+        "labor_as_percent_revenue": round((total_labor_cost / total_revenue * 100) if total_revenue > 0 else 0, 1)
+    }
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"finance-{uuid.uuid4()}",
+        system_message="""You are a financial analyst for a restoration contracting company.
+        Analyze KPIs and financial data to provide actionable insights. Focus on:
+        1. Profitability trends
+        2. Cash flow health
+        3. Risk indicators
+        4. Improvement opportunities
+        Use industry benchmarks for restoration companies when relevant.
+        Be specific with numbers and recommendations."""
+    ).with_model("openai", "gpt-4o")
+    
+    prompt = f"""Analyze these financial KPIs for a restoration company:
+
+{json.dumps(kpis, indent=2)}
+
+Provide:
+1. KPI Assessment - How do these metrics compare to industry benchmarks?
+2. Cash Flow Analysis - Current position and 30/60/90 day outlook
+3. Risk Indicators - What financial risks need attention?
+4. Improvement Opportunities - Specific actions to improve margins
+5. Forecast - Brief outlook based on current trends"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {
+        "analysis": response,
+        "kpis": kpis
+    }
+
+
+# ============ PROJECT & COST CONTROL ASSISTANT ============
+
+@api_router.post("/ai/projects/analyze")
+async def ai_project_analysis(job_id: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+    """AI-powered project cost analysis"""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.environ.get('EMERGENT_LLM_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    if job_id:
+        jobs = [await db.jobs.find_one({"id": job_id}, {"_id": 0})]
+        if not jobs[0]:
+            raise HTTPException(status_code=404, detail="Job not found")
+    else:
+        jobs = await db.jobs.find({"status": {"$in": ["scheduled", "in_progress"]}}, {"_id": 0}).to_list(100)
+    
+    project_data = []
+    for job in jobs:
+        if not job:
+            continue
+            
+        expenses = await db.expenses.find({"job_id": job["id"]}, {"_id": 0}).to_list(500)
+        daily_logs = await db.daily_logs.find({"job_id": job["id"]}, {"_id": 0}).to_list(500)
+        invoices = await db.invoices.find({"job_id": job["id"]}, {"_id": 0}).to_list(50)
+        
+        # Calculate costs
+        labor_cost = sum(
+            sum(e.get("hours", 0) * e.get("hourly_rate", 0) for e in log.get("labor_entries", []))
+            for log in daily_logs
+        )
+        equipment_cost = sum(
+            sum(e.get("quantity", 1) * e.get("daily_rate", 0) for e in log.get("equipment_entries", []))
+            for log in daily_logs
+        )
+        material_cost = sum(
+            sum(e.get("quantity", 0) * e.get("unit_cost", 0) for e in log.get("material_entries", []))
+            for log in daily_logs
+        )
+        other_expenses = sum(e.get("amount", 0) for e in expenses)
+        total_cost = labor_cost + equipment_cost + material_cost + other_expenses
+        
+        budget = job.get("budget_amount", 0)
+        estimated = job.get("estimated_amount", 0)
+        invoiced = sum(inv.get("total", 0) for inv in invoices)
+        
+        project_data.append({
+            "job_id": job["id"],
+            "title": job["title"],
+            "customer": job["customer_name"],
+            "status": job["status"],
+            "phase": job.get("current_phase"),
+            "budget": budget,
+            "estimated": estimated,
+            "actual_cost": total_cost,
+            "invoiced": invoiced,
+            "costs": {
+                "labor": labor_cost,
+                "equipment": equipment_cost,
+                "materials": material_cost,
+                "other": other_expenses
+            },
+            "variance": total_cost - budget if budget > 0 else 0,
+            "variance_percent": round((total_cost - budget) / budget * 100, 1) if budget > 0 else 0,
+            "is_over_budget": total_cost > budget if budget > 0 else False
+        })
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"project-{uuid.uuid4()}",
+        system_message="""You are a project cost controller for a restoration contracting company.
+        Analyze project costs and budgets. Focus on:
+        1. Cost overruns and their causes
+        2. Budget vs actual comparisons
+        3. Early warning indicators
+        4. Cost optimization opportunities
+        Provide specific, actionable recommendations for each project."""
+    ).with_model("openai", "gpt-4o")
+    
+    prompt = f"""Analyze these project costs:
+
+{json.dumps(project_data, indent=2)}
+
+Provide:
+1. Project-by-project cost assessment
+2. Budget vs Actual comparison with explanations
+3. Projects at risk of overrun
+4. Cost optimization recommendations
+5. Bid review insights for future estimates"""
+    
+    response = await chat.send_message(UserMessage(text=prompt))
+    
+    return {
+        "analysis": response,
+        "projects": project_data,
+        "summary": {
+            "total_projects": len(project_data),
+            "over_budget": len([p for p in project_data if p["is_over_budget"]]),
+            "total_budget": sum(p["budget"] for p in project_data),
+            "total_actual": sum(p["actual_cost"] for p in project_data),
+            "total_variance": sum(p["variance"] for p in project_data)
+        }
+    }
+
+
 @api_router.post("/ai/analyze-compliance")
 async def analyze_compliance(current_user: dict = Depends(get_current_user)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
