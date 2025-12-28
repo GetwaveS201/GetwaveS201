@@ -1085,11 +1085,85 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     invoices = await db.invoices.find({}, {"_id": 0}).to_list(1000)
     expenses = await db.expenses.find({}, {"_id": 0}).to_list(1000)
     crews = await db.crews.find({}, {"_id": 0}).to_list(100)
+    daily_logs = await db.daily_logs.find({}, {"_id": 0}).to_list(1000)
     
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    week_ago = today - timedelta(days=7)
+    two_weeks_ago = today - timedelta(days=14)
+    month_ago = today - timedelta(days=30)
+    two_months_ago = today - timedelta(days=60)
+    
+    # Current period totals
     total_revenue = sum(inv["total"] for inv in invoices if inv.get("status") == "paid")
     total_expenses = sum(exp["amount"] for exp in expenses)
     outstanding_invoices = sum(inv["total"] for inv in invoices if inv.get("status") in ["sent", "draft", "overdue"])
     
+    # Calculate weekly revenue (this week vs last week)
+    this_week_revenue = sum(
+        inv["total"] for inv in invoices 
+        if inv.get("status") == "paid" and inv.get("created_at", "")[:10] >= str(week_ago)
+    )
+    last_week_revenue = sum(
+        inv["total"] for inv in invoices 
+        if inv.get("status") == "paid" and str(two_weeks_ago) <= inv.get("created_at", "")[:10] < str(week_ago)
+    )
+    revenue_change = ((this_week_revenue - last_week_revenue) / last_week_revenue * 100) if last_week_revenue > 0 else (100 if this_week_revenue > 0 else 0)
+    
+    # Calculate monthly revenue trend
+    this_month_revenue = sum(
+        inv["total"] for inv in invoices 
+        if inv.get("status") == "paid" and inv.get("created_at", "")[:10] >= str(month_ago)
+    )
+    last_month_revenue = sum(
+        inv["total"] for inv in invoices 
+        if inv.get("status") == "paid" and str(two_months_ago) <= inv.get("created_at", "")[:10] < str(month_ago)
+    )
+    monthly_revenue_change = ((this_month_revenue - last_month_revenue) / last_month_revenue * 100) if last_month_revenue > 0 else (100 if this_month_revenue > 0 else 0)
+    
+    # Jobs this week vs last week
+    jobs_this_week = len([j for j in jobs if j.get("created_at", "")[:10] >= str(week_ago)])
+    jobs_last_week = len([j for j in jobs if str(two_weeks_ago) <= j.get("created_at", "")[:10] < str(week_ago)])
+    jobs_change = ((jobs_this_week - jobs_last_week) / jobs_last_week * 100) if jobs_last_week > 0 else (100 if jobs_this_week > 0 else 0)
+    
+    # Active jobs trend
+    active_jobs = [j for j in jobs if j.get("status") in ["scheduled", "in_progress"]]
+    completed_this_week = len([j for j in jobs if j.get("status") == "completed" and j.get("updated_at", "")[:10] >= str(week_ago)])
+    
+    # Crew utilization
+    busy_crews = len([c for c in crews if c.get("status") == "busy"])
+    crew_utilization = (busy_crews / len(crews) * 100) if crews else 0
+    
+    # Average job value
+    completed_jobs = [j for j in jobs if j.get("status") == "completed" and j.get("total_amount", 0) > 0]
+    avg_job_value = sum(j.get("total_amount", 0) for j in completed_jobs) / len(completed_jobs) if completed_jobs else 0
+    
+    # Days to completion average
+    completed_with_dates = [j for j in jobs if j.get("status") == "completed" and j.get("created_at") and j.get("updated_at")]
+    avg_days_to_complete = 0
+    if completed_with_dates:
+        total_days = 0
+        for j in completed_with_dates:
+            try:
+                created = datetime.fromisoformat(j["created_at"].replace("Z", "+00:00"))
+                updated = datetime.fromisoformat(j["updated_at"].replace("Z", "+00:00"))
+                total_days += (updated - created).days
+            except:
+                pass
+        avg_days_to_complete = total_days / len(completed_with_dates) if completed_with_dates else 0
+    
+    # Labor hours this week
+    labor_hours_this_week = sum(
+        sum(e.get("hours", 0) for e in log.get("labor_entries", []))
+        for log in daily_logs if log.get("date", "") >= str(week_ago)
+    )
+    labor_hours_last_week = sum(
+        sum(e.get("hours", 0) for e in log.get("labor_entries", []))
+        for log in daily_logs if str(two_weeks_ago) <= log.get("date", "") < str(week_ago)
+    )
+    labor_hours_change = ((labor_hours_this_week - labor_hours_last_week) / labor_hours_last_week * 100) if labor_hours_last_week > 0 else (100 if labor_hours_this_week > 0 else 0)
+    
+    # Jobs by status and phase
     jobs_by_status = {}
     jobs_by_phase = {}
     for job in jobs:
@@ -1099,20 +1173,22 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         jobs_by_phase[phase] = jobs_by_phase.get(phase, 0) + 1
     
     # Overdue invoices
-    today = datetime.now(timezone.utc).date()
     overdue_invoices = []
     for inv in invoices:
         if inv.get("status") not in ["paid", "cancelled"]:
-            due_date = datetime.strptime(inv["due_date"], "%Y-%m-%d").date()
-            if due_date < today:
-                days_overdue = (today - due_date).days
-                overdue_invoices.append({
-                    "invoice_number": inv["invoice_number"],
-                    "customer_name": inv["customer_name"],
-                    "total": inv["total"],
-                    "due_date": inv["due_date"],
-                    "days_overdue": days_overdue
-                })
+            try:
+                due_date = datetime.strptime(inv["due_date"], "%Y-%m-%d").date()
+                if due_date < today:
+                    days_overdue = (today - due_date).days
+                    overdue_invoices.append({
+                        "invoice_number": inv["invoice_number"],
+                        "customer_name": inv["customer_name"],
+                        "total": inv["total"],
+                        "due_date": inv["due_date"],
+                        "days_overdue": days_overdue
+                    })
+            except:
+                pass
     
     # Jobs over budget
     jobs_over_budget = []
@@ -1129,21 +1205,51 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
                     "variance": total_cost - job["budget_amount"]
                 })
     
+    # Loss type breakdown
+    loss_type_counts = {}
+    for job in jobs:
+        lt = job.get("loss_type", "other")
+        loss_type_counts[lt] = loss_type_counts.get(lt, 0) + 1
+    
+    # Insurance stats
+    jobs_with_insurance = len([j for j in jobs if j.get("insurance_claim", {}).get("claim_number")])
+    total_approved = sum(j.get("insurance_claim", {}).get("approved_amount", 0) for j in jobs if j.get("insurance_claim"))
+    total_depreciation = sum(j.get("insurance_claim", {}).get("depreciation_withheld", 0) for j in jobs if j.get("insurance_claim"))
+    
     return {
         "total_jobs": len(jobs),
-        "active_jobs": len([j for j in jobs if j.get("status") in ["scheduled", "in_progress"]]),
+        "active_jobs": len(active_jobs),
+        "jobs_this_week": jobs_this_week,
+        "jobs_change_percent": round(jobs_change, 1),
+        "completed_this_week": completed_this_week,
         "total_crews": len(crews),
         "available_crews": len([c for c in crews if c.get("status") == "available"]),
+        "busy_crews": busy_crews,
+        "crew_utilization": round(crew_utilization, 1),
         "total_revenue": total_revenue,
+        "this_week_revenue": this_week_revenue,
+        "revenue_change_percent": round(revenue_change, 1),
+        "monthly_revenue_change_percent": round(monthly_revenue_change, 1),
         "total_expenses": total_expenses,
         "gross_profit": total_revenue - total_expenses,
+        "profit_margin": round((total_revenue - total_expenses) / total_revenue * 100, 1) if total_revenue > 0 else 0,
         "outstanding_invoices": outstanding_invoices,
+        "avg_job_value": round(avg_job_value, 2),
+        "avg_days_to_complete": round(avg_days_to_complete, 1),
+        "labor_hours_this_week": labor_hours_this_week,
+        "labor_hours_change_percent": round(labor_hours_change, 1),
         "jobs_by_status": jobs_by_status,
         "jobs_by_phase": jobs_by_phase,
+        "loss_type_counts": loss_type_counts,
         "pending_invoices": len([inv for inv in invoices if inv.get("status") == "sent"]),
-        "overdue_invoices": overdue_invoices,
+        "overdue_invoices": sorted(overdue_invoices, key=lambda x: x["days_overdue"], reverse=True)[:5],
         "overdue_invoices_count": len(overdue_invoices),
-        "jobs_over_budget": jobs_over_budget,
+        "overdue_invoices_total": sum(inv["total"] for inv in overdue_invoices),
+        "jobs_over_budget": jobs_over_budget[:5],
+        "jobs_over_budget_count": len(jobs_over_budget),
+        "jobs_with_insurance": jobs_with_insurance,
+        "insurance_approved_total": total_approved,
+        "depreciation_withheld_total": total_depreciation,
         "recent_jobs": jobs[-5:][::-1] if jobs else []
     }
 
