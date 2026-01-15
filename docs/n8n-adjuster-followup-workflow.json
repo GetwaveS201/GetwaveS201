@@ -1,0 +1,390 @@
+{
+  "name": "Insurance Adjuster Email Follow-Up Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerOn": "messageReceived",
+        "filters": {
+          "includeSpamTrash": false
+        }
+      },
+      "name": "Gmail Trigger - New Email",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "sender_email",
+              "value": "={{ $json.payload.headers.find(h => h.name === 'From').value.match(/<(.+)>/)?.[1] || $json.payload.headers.find(h => h.name === 'From').value }}"
+            },
+            {
+              "name": "sender_domain",
+              "value": "={{ $json.sender_email.split('@')[1].toLowerCase() }}"
+            },
+            {
+              "name": "subject",
+              "value": "={{ $json.payload.headers.find(h => h.name === 'Subject').value }}"
+            },
+            {
+              "name": "message_id",
+              "value": "={{ $json.payload.headers.find(h => h.name === 'Message-ID').value }}"
+            },
+            {
+              "name": "thread_id",
+              "value": "={{ $json.threadId }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.snippet || $json.payload.body.data }}"
+            },
+            {
+              "name": "gmail_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "to_recipients",
+              "value": "={{ $json.payload.headers.find(h => h.name === 'To')?.value || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Extract Email Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.sender_domain }}",
+              "operation": "regex",
+              "value2": "(allstate|statefarm|progressive|geico|libertymutual|travelers|nationwide|usaa|farmers|americanfamily|safeco|aig|chubb|zurichna|thehartford|crawco|sedgwick|gallagherbasset|corvel|tristargroup|york-intl|esis|broadspire|eberl|enservio|verisk|haag)\\.com"
+            }
+          ]
+        }
+      },
+      "name": "Check Domain Qualified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.subject + ' ' + $json.body }}",
+              "operation": "regex",
+              "value2": "(invoice|payment|billing|mitigation|estimate|scope|supplement|approval)"
+            }
+          ]
+        }
+      },
+      "name": "Check Billing Keywords",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        850,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_API_URL/api/adjuster-followups/qualify",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"sender_email\": \"{{ $json.sender_email }}\",\n  \"sender_domain\": \"{{ $json.sender_domain }}\",\n  \"email_subject\": \"{{ $json.subject }}\",\n  \"email_body\": \"{{ $json.body }}\",\n  \"recipients_to\": [\"{{ $json.to_recipients }}\"],\n  \"recipients_cc\": [],\n  \"message_id\": \"{{ $json.message_id }}\",\n  \"thread_id\": \"{{ $json.thread_id }}\",\n  \"is_auto_reply\": false\n}",
+        "options": {}
+      },
+      "name": "Call Qualification API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1050,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "RestorationOS API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.qualified }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check If Qualified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabels",
+        "messageId": "={{ $node['Extract Email Data'].json.gmail_id }}",
+        "labelIds": [
+          "Label_AdjusterFollowUp"
+        ]
+      },
+      "name": "Apply Gmail Label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        150
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "qualified"
+            },
+            {
+              "name": "action",
+              "value": "Added to approval queue"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Log Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1650,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "rejected"
+            },
+            {
+              "name": "reason",
+              "value": "={{ $json.reason || 'Not qualified' }}"
+            },
+            {
+              "name": "sender_domain",
+              "value": "={{ $node['Extract Email Data'].json.sender_domain }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Log Rejection",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1450,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "reason",
+              "value": "No billing keywords found"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Reject - No Keywords",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "reason",
+              "value": "Domain not in whitelist"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Reject - Invalid Domain",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        850,
+        450
+      ]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger - New Email": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Data": {
+      "main": [
+        [
+          {
+            "node": "Check Domain Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Domain Qualified": {
+      "main": [
+        [
+          {
+            "node": "Check Billing Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject - Invalid Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Billing Keywords": {
+      "main": [
+        [
+          {
+            "node": "Call Qualification API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject - No Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Qualification API": {
+      "main": [
+        [
+          {
+            "node": "Check If Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Qualified": {
+      "main": [
+        [
+          {
+            "node": "Apply Gmail Label",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Gmail Label": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "adjuster-followup-workflow",
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "tags": [
+    {
+      "name": "Insurance",
+      "id": "1"
+    },
+    {
+      "name": "Collections",
+      "id": "2"
+    }
+  ]
+}

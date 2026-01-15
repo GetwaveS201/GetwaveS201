@@ -1,0 +1,214 @@
+{
+  "name": "Adjuster Follow-Up Daily Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Schedule - Daily 8 AM (Weekdays)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_API_URL/api/adjuster-followups/run-scheduler",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "name": "Run Scheduler API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        450,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "RestorationOS API Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "processed_at",
+              "value": "={{ $json.processed_at }}"
+            },
+            {
+              "name": "total_threads",
+              "value": "={{ $json.total_threads }}"
+            },
+            {
+              "name": "total_sent",
+              "value": "={{ $json.results.filter(r => r.status === 'sent').length }}"
+            },
+            {
+              "name": "total_skipped",
+              "value": "={{ $json.results.filter(r => r.status === 'skipped').length }}"
+            },
+            {
+              "name": "total_failed",
+              "value": "={{ $json.results.filter(r => r.status === 'failed').length }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Parse Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.total_sent }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "Any Emails Sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "notifications@yourcompany.com",
+        "toEmail": "management@yourcompany.com",
+        "subject": "=Adjuster Follow-Up Report - {{ $json.total_sent }} emails sent",
+        "text": "=Daily Adjuster Follow-Up Automation Report\n\nProcessed at: {{ $json.processed_at }}\n\nSummary:\n- Total threads processed: {{ $json.total_threads }}\n- Follow-ups sent: {{ $json.total_sent }}\n- Skipped: {{ $json.total_skipped }}\n- Failed: {{ $json.total_failed }}\n\nPlease review the Adjuster Follow-Ups dashboard for details.",
+        "options": {}
+      },
+      "name": "Send Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        250
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "No emails sent today"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "No Action Needed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule - Daily 8 AM (Weekdays)": {
+      "main": [
+        [
+          {
+            "node": "Run Scheduler API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Scheduler API": {
+      "main": [
+        [
+          {
+            "node": "Parse Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Results": {
+      "main": [
+        [
+          {
+            "node": "Any Emails Sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Emails Sent?": {
+      "main": [
+        [
+          {
+            "node": "Send Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Action Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "id": "adjuster-scheduler-workflow",
+  "meta": {
+    "instanceId": "your-instance-id"
+  },
+  "tags": [
+    {
+      "name": "Insurance",
+      "id": "1"
+    },
+    {
+      "name": "Automation",
+      "id": "2"
+    }
+  ]
+}
