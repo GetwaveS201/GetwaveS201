@@ -296,6 +296,54 @@ class AIMessageRequest(BaseModel):
     customer_name: str
     custom_context: Optional[str] = None
 
+# Adjuster Follow-Up Models
+class FollowUpNote(BaseModel):
+    date: str
+    followup_number: int
+    days_since_first_contact: int
+    days_past_due: int
+    email_sent: bool = False
+    email_sent_at: Optional[str] = None
+    notes: str = ""
+
+class AdjusterFollowUpCreate(BaseModel):
+    email_message_id: str
+    thread_id: str
+    job_id: str
+    invoice_id: str
+    claim_number: str
+    adjuster_name: str
+    adjuster_email: EmailStr
+    carrier_name: str
+    invoice_number: str
+    invoice_amount: float
+    invoice_due_date: str
+    first_contact_date: str
+
+class AdjusterFollowUpUpdate(BaseModel):
+    status: Optional[str] = None  # active, paused, paid, coverage_issued, disputed, escalated_internal
+    approval_status: Optional[str] = None  # pending_approval, approved, rejected
+    stop_reason: Optional[str] = None
+
+class EmailQualificationRequest(BaseModel):
+    sender_email: EmailStr
+    sender_domain: str
+    email_subject: str
+    email_body: str
+    recipients_to: List[str]
+    recipients_cc: List[str] = []
+    message_id: str
+    thread_id: str
+    is_auto_reply: bool = False
+
+class EmailQualificationResponse(BaseModel):
+    qualified: bool
+    reason: str
+    domain_match: bool
+    keyword_match: bool
+    message_type_valid: bool
+    requires_approval: bool
+
 # ============ AUTH HELPERS ============
 
 def hash_password(password: str) -> str:
@@ -325,6 +373,251 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+# ============ ADJUSTER FOLLOW-UP HELPERS ============
+
+# Qualified adjuster domains
+INSURANCE_CARRIER_DOMAINS = [
+    "allstate.com", "statefarm.com", "progressive.com", "geico.com",
+    "libertymutual.com", "travelers.com", "nationwide.com", "usaa.com",
+    "farmers.com", "americanfamily.com", "safeco.com", "aig.com",
+    "chubb.com", "zurichna.com", "thehartford.com"
+]
+
+TPA_DOMAINS = [
+    "crawco.com", "sedgwick.com", "gallagherbasset.com", "corvel.com",
+    "tristargroup.com", "york-intl.com", "esis.com", "broadspire.com"
+]
+
+ADJUSTER_FIRM_DOMAINS = [
+    "eberl.com", "enservio.com", "verisk.com", "haag.com"
+]
+
+BILLING_KEYWORDS = [
+    "invoice", "payment", "billing", "mitigation", "estimate",
+    "scope", "supplement", "approval"
+]
+
+US_HOLIDAYS_2026 = [
+    datetime(2026, 1, 1),   # New Year's Day
+    datetime(2026, 5, 25),  # Memorial Day
+    datetime(2026, 7, 4),   # Independence Day (Saturday, observed Friday 7/3)
+    datetime(2026, 7, 3),   # Independence Day observed
+    datetime(2026, 9, 7),   # Labor Day
+    datetime(2026, 11, 26), # Thanksgiving
+    datetime(2026, 12, 25), # Christmas
+]
+
+def is_business_day(date: datetime) -> bool:
+    """Check if date is a business day (Mon-Fri, not holiday)"""
+    # Check if weekend
+    if date.weekday() >= 5:  # 5=Saturday, 6=Sunday
+        return False
+
+    # Check if holiday
+    date_only = datetime(date.year, date.month, date.day)
+    if date_only in US_HOLIDAYS_2026:
+        return False
+
+    return True
+
+def next_business_day(start_date: datetime, days_to_add: int = 3) -> datetime:
+    """Calculate next business day, skipping weekends and holidays"""
+    current = start_date
+    days_added = 0
+
+    while days_added < days_to_add:
+        current = current + timedelta(days=1)
+        if is_business_day(current):
+            days_added += 1
+
+    return current
+
+def calculate_days_past_due(due_date_str: str) -> int:
+    """Calculate how many days past due an invoice is"""
+    due_date = datetime.fromisoformat(due_date_str.replace('Z', '+00:00'))
+    now = datetime.now(timezone.utc)
+    delta = (now - due_date).days
+    return max(0, delta)  # Return 0 if not past due yet
+
+def calculate_days_since_first_contact(first_contact_str: str) -> int:
+    """Calculate days since first contact"""
+    first_contact = datetime.fromisoformat(first_contact_str.replace('Z', '+00:00'))
+    now = datetime.now(timezone.utc)
+    return (now - first_contact).days
+
+def is_domain_qualified(domain: str) -> bool:
+    """Check if email domain is from qualified adjuster/carrier/TPA"""
+    domain_lower = domain.lower()
+    all_qualified = INSURANCE_CARRIER_DOMAINS + TPA_DOMAINS + ADJUSTER_FIRM_DOMAINS
+    return domain_lower in all_qualified
+
+def contains_billing_keywords(text: str) -> bool:
+    """Check if email contains billing-related keywords"""
+    text_lower = text.lower()
+    return any(keyword in text_lower for keyword in BILLING_KEYWORDS)
+
+def qualify_email(request: EmailQualificationRequest) -> EmailQualificationResponse:
+    """
+    Qualify email for adjuster follow-up based on business rules
+
+    Rules:
+    1. Sender domain must be insurance carrier, TPA, or adjuster firm
+    2. Email body must contain billing keywords
+    3. Must be direct (TO: field, not CC-only)
+    4. Must not be auto-reply
+    """
+    # Level 1: Domain verification
+    domain_match = is_domain_qualified(request.sender_domain)
+
+    # Level 2: Content analysis
+    keyword_match = contains_billing_keywords(request.email_body) or \
+                    contains_billing_keywords(request.email_subject)
+
+    # Level 3: Message type filter
+    is_direct = len(request.recipients_to) > 0
+    is_not_auto_reply = not request.is_auto_reply
+    message_type_valid = is_direct and is_not_auto_reply
+
+    # Overall qualification
+    qualified = domain_match and keyword_match and message_type_valid
+
+    # Determine reason
+    if not domain_match:
+        reason = f"Sender domain '{request.sender_domain}' is not a qualified insurance carrier, TPA, or adjuster firm"
+    elif not keyword_match:
+        reason = "Email does not contain billing-related keywords (invoice, payment, etc.)"
+    elif not message_type_valid:
+        if not is_direct:
+            reason = "Email is CC-only, not directly addressed to business"
+        else:
+            reason = "Email is an auto-reply or out-of-office message"
+    else:
+        reason = "Email qualified for follow-up - requires manual approval"
+
+    return EmailQualificationResponse(
+        qualified=qualified,
+        reason=reason,
+        domain_match=domain_match,
+        keyword_match=keyword_match,
+        message_type_valid=message_type_valid,
+        requires_approval=qualified
+    )
+
+async def should_send_followup(thread: dict) -> tuple[bool, str]:
+    """
+    Determine if a follow-up should be sent for this thread
+    Returns: (should_send: bool, reason: str)
+    """
+    # Check status - stop conditions
+    if thread.get("status") in ["paid", "coverage_issued", "disputed", "paused"]:
+        return False, f"Thread status is '{thread.get('status')}' - automation stopped"
+
+    # Check approval status
+    if thread.get("approval_status") != "approved":
+        return False, "Thread not yet approved for follow-up"
+
+    # Check if too soon since last followup
+    last_followup = thread.get("last_followup_date")
+    if last_followup:
+        last_followup_dt = datetime.fromisoformat(last_followup.replace('Z', '+00:00'))
+        days_since_last = (datetime.now(timezone.utc) - last_followup_dt).days
+        if days_since_last < 3:
+            return False, f"Only {days_since_last} days since last follow-up (minimum 3 required)"
+
+    # Check max attempts
+    followup_count = thread.get("followup_count", 0)
+    if followup_count >= 10:
+        return False, "Maximum follow-up attempts reached (10) - escalate internally"
+
+    # Check if today is business day
+    now = datetime.now(timezone.utc)
+    if not is_business_day(now):
+        return False, "Today is not a business day (weekend or holiday)"
+
+    # Check if invoice is already paid in system
+    invoice_id = thread.get("invoice_id")
+    if invoice_id:
+        invoice = await db.invoices.find_one({"id": invoice_id})
+        if invoice and invoice.get("status") == "paid":
+            return False, "Invoice is marked as paid in system"
+
+    return True, "Ready to send follow-up"
+
+def generate_escalation_email(thread: dict, company_name: str, user_name: str, user_phone: str) -> dict:
+    """
+    Generate escalation email content for adjuster follow-up
+
+    Returns dict with 'subject' and 'body'
+    """
+    days_since_first_contact = calculate_days_since_first_contact(thread["first_contact_date"])
+    days_past_due = calculate_days_past_due(thread["invoice_due_date"])
+
+    subject = f"Claim Billing Status Required – Invoice #{thread['invoice_number']}"
+
+    body = f"""Hello {thread['adjuster_name']},
+
+We are following up regarding the invoice referenced below.
+
+Services were completed and invoiced {days_since_first_contact} days ago, and this account remains open with no payment or formal coverage position issued. Multiple follow-ups have been sent without response, and we need clear direction to close this file.
+
+"""
+
+    if days_past_due > 0:
+        body += f"This invoice is now {days_past_due} days past due.\n\n"
+
+    body += """If additional documentation is required, please advise immediately. If the file requires reassignment or supervisory review, please confirm so we can coordinate accordingly.
+
+Absent a response, this matter will be escalated internally to ensure timely resolution. Our preference is to resolve this directly and close the claim professionally.
+
+Please confirm status or next steps by end of business day.
+
+Thank you,
+"""
+
+    body += f"{user_name}\n{company_name}\n{user_phone}\n\n"
+
+    body += f"""---
+Reference Information:
+Claim #: {thread['claim_number']}
+Invoice #: {thread['invoice_number']}
+Invoice Amount: ${thread['invoice_amount']:,.2f}
+Invoice Due Date: {thread['invoice_due_date']}
+Carrier: {thread['carrier_name']}
+"""
+
+    return {"subject": subject, "body": body}
+
+async def send_email_via_smtp(to_email: str, subject: str, body: str, from_email: str = None) -> bool:
+    """
+    Send email via SMTP
+
+    NOTE: This is a placeholder. In production, integrate with:
+    - SendGrid API
+    - Mailgun API
+    - AWS SES
+    - Or your preferred email service
+
+    For now, just logs the email and returns True
+    """
+    if not from_email:
+        from_email = os.environ.get("SMTP_FROM_EMAIL", "noreply@restorationos.com")
+
+    logger.info(f"[EMAIL] Would send email:")
+    logger.info(f"  To: {to_email}")
+    logger.info(f"  From: {from_email}")
+    logger.info(f"  Subject: {subject}")
+    logger.info(f"  Body length: {len(body)} characters")
+
+    # TODO: Implement actual email sending
+    # Example with SendGrid:
+    # import sendgrid
+    # sg = sendgrid.SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
+    # message = Mail(from_email=from_email, to_emails=to_email, subject=subject, html_content=body)
+    # response = sg.send(message)
+    # return response.status_code == 202
+
+    return True  # Placeholder success
 
 # ============ AUTH ROUTES ============
 
@@ -1014,6 +1307,385 @@ async def get_communications(job_id: Optional[str] = None, current_user: dict = 
         query["job_id"] = job_id
     comms = await db.communications.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return comms
+
+# ============ ADJUSTER FOLLOW-UP ROUTES ============
+
+@api_router.post("/adjuster-followups/qualify", response_model=EmailQualificationResponse)
+async def qualify_email_for_followup(request: EmailQualificationRequest):
+    """
+    Qualify an email to determine if it should be added to follow-up queue
+
+    This endpoint is called by email automation (n8n/Make/Zapier) when new emails arrive
+    """
+    return qualify_email(request)
+
+@api_router.post("/adjuster-followups")
+async def create_adjuster_followup(followup_data: AdjusterFollowUpCreate, current_user: dict = Depends(get_current_user)):
+    """
+    Create a new adjuster follow-up thread (usually after email qualification)
+    """
+    followup_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Calculate next followup date (3 business days from first contact)
+    first_contact = datetime.fromisoformat(followup_data.first_contact_date.replace('Z', '+00:00'))
+    next_followup = next_business_day(first_contact, 3)
+
+    followup_doc = {
+        "id": followup_id,
+        **followup_data.model_dump(),
+        "followup_count": 0,
+        "last_followup_date": None,
+        "next_followup_date": next_followup.isoformat(),
+        "days_outstanding": calculate_days_since_first_contact(followup_data.first_contact_date),
+        "status": "pending_approval",
+        "approval_status": "pending_approval",
+        "approved_by": None,
+        "approved_at": None,
+        "stop_reason": None,
+        "escalation_notes": [],
+        "created_at": now,
+        "created_by": current_user["id"],
+        "updated_at": now
+    }
+
+    await db.adjuster_followups.insert_one(followup_doc)
+    followup_doc.pop("_id", None)
+    return followup_doc
+
+@api_router.get("/adjuster-followups/pending-approval")
+async def get_pending_approval_followups(current_user: dict = Depends(get_current_user)):
+    """
+    Get all follow-up threads awaiting manual approval
+    """
+    threads = await db.adjuster_followups.find(
+        {"approval_status": "pending_approval"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    return threads
+
+@api_router.get("/adjuster-followups/active")
+async def get_active_followups(current_user: dict = Depends(get_current_user)):
+    """
+    Get all active follow-up threads
+    """
+    threads = await db.adjuster_followups.find(
+        {"status": "active", "approval_status": "approved"},
+        {"_id": 0}
+    ).sort("next_followup_date", 1).to_list(1000)
+    return threads
+
+@api_router.get("/adjuster-followups/{followup_id}")
+async def get_followup_thread(followup_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get a specific follow-up thread by ID
+    """
+    thread = await db.adjuster_followups.find_one({"id": followup_id}, {"_id": 0})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Follow-up thread not found")
+    return thread
+
+@api_router.put("/adjuster-followups/{followup_id}/approve")
+async def approve_followup_thread(followup_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Approve a follow-up thread to activate automation
+    """
+    thread = await db.adjuster_followups.find_one({"id": followup_id})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Follow-up thread not found")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.adjuster_followups.update_one(
+        {"id": followup_id},
+        {
+            "$set": {
+                "approval_status": "approved",
+                "status": "active",
+                "approved_by": current_user["id"],
+                "approved_at": now,
+                "updated_at": now
+            }
+        }
+    )
+
+    return {"message": "Follow-up thread approved and activated"}
+
+@api_router.put("/adjuster-followups/{followup_id}/reject")
+async def reject_followup_thread(followup_id: str, reason: str = "", current_user: dict = Depends(get_current_user)):
+    """
+    Reject a follow-up thread (will not be automated)
+    """
+    thread = await db.adjuster_followups.find_one({"id": followup_id})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Follow-up thread not found")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.adjuster_followups.update_one(
+        {"id": followup_id},
+        {
+            "$set": {
+                "approval_status": "rejected",
+                "status": "paused",
+                "stop_reason": reason or "rejected_by_user",
+                "updated_at": now
+            }
+        }
+    )
+
+    return {"message": "Follow-up thread rejected"}
+
+@api_router.put("/adjuster-followups/{followup_id}/pause")
+async def pause_followup_thread(followup_id: str, reason: str = "", current_user: dict = Depends(get_current_user)):
+    """
+    Pause automation for a follow-up thread
+    """
+    thread = await db.adjuster_followups.find_one({"id": followup_id})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Follow-up thread not found")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.adjuster_followups.update_one(
+        {"id": followup_id},
+        {
+            "$set": {
+                "status": "paused",
+                "stop_reason": reason or "manually_paused",
+                "updated_at": now
+            }
+        }
+    )
+
+    return {"message": "Follow-up thread paused"}
+
+@api_router.put("/adjuster-followups/{followup_id}/resume")
+async def resume_followup_thread(followup_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Resume automation for a paused follow-up thread
+    """
+    thread = await db.adjuster_followups.find_one({"id": followup_id})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Follow-up thread not found")
+
+    if thread.get("approval_status") != "approved":
+        raise HTTPException(status_code=400, detail="Thread must be approved before resuming")
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    await db.adjuster_followups.update_one(
+        {"id": followup_id},
+        {
+            "$set": {
+                "status": "active",
+                "stop_reason": None,
+                "updated_at": now
+            }
+        }
+    )
+
+    return {"message": "Follow-up thread resumed"}
+
+@api_router.put("/adjuster-followups/{followup_id}")
+async def update_followup_status(
+    followup_id: str,
+    update_data: AdjusterFollowUpUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Update follow-up thread status
+    """
+    thread = await db.adjuster_followups.find_one({"id": followup_id})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Follow-up thread not found")
+
+    now = datetime.now(timezone.utc).isoformat()
+    update_fields = update_data.model_dump(exclude_unset=True)
+    update_fields["updated_at"] = now
+
+    await db.adjuster_followups.update_one(
+        {"id": followup_id},
+        {"$set": update_fields}
+    )
+
+    return {"message": "Follow-up thread updated"}
+
+@api_router.post("/adjuster-followups/{followup_id}/send")
+async def send_manual_followup(followup_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Manually trigger a follow-up email for a specific thread
+    """
+    thread = await db.adjuster_followups.find_one({"id": followup_id})
+    if not thread:
+        raise HTTPException(status_code=404, detail="Follow-up thread not found")
+
+    # Check if should send
+    should_send, reason = await should_send_followup(thread)
+    if not should_send:
+        raise HTTPException(status_code=400, detail=f"Cannot send follow-up: {reason}")
+
+    # Generate email content
+    company_name = os.environ.get("COMPANY_NAME", "RestorationOS")
+    email_content = generate_escalation_email(thread, company_name, current_user["name"], current_user.get("phone", ""))
+
+    # Send email
+    email_sent = await send_email_via_smtp(
+        to_email=thread["adjuster_email"],
+        subject=email_content["subject"],
+        body=email_content["body"]
+    )
+
+    if not email_sent:
+        raise HTTPException(status_code=500, detail="Failed to send email")
+
+    # Update thread
+    now = datetime.now(timezone.utc).isoformat()
+    followup_count = thread.get("followup_count", 0) + 1
+    next_followup = next_business_day(datetime.now(timezone.utc), 3)
+
+    escalation_note = {
+        "date": now,
+        "followup_number": followup_count,
+        "days_since_first_contact": calculate_days_since_first_contact(thread["first_contact_date"]),
+        "days_past_due": calculate_days_past_due(thread["invoice_due_date"]),
+        "email_sent": True,
+        "email_sent_at": now,
+        "sent_by": current_user["id"]
+    }
+
+    await db.adjuster_followups.update_one(
+        {"id": followup_id},
+        {
+            "$set": {
+                "followup_count": followup_count,
+                "last_followup_date": now,
+                "next_followup_date": next_followup.isoformat(),
+                "days_outstanding": escalation_note["days_since_first_contact"],
+                "updated_at": now
+            },
+            "$push": {
+                "escalation_notes": escalation_note
+            }
+        }
+    )
+
+    return {
+        "message": "Follow-up email sent successfully",
+        "followup_number": followup_count,
+        "next_followup_date": next_followup.isoformat()
+    }
+
+@api_router.post("/adjuster-followups/run-scheduler")
+async def run_automated_scheduler():
+    """
+    Automated scheduler endpoint - called by cron job daily
+
+    Processes all active threads and sends follow-ups as needed
+    """
+    now = datetime.now(timezone.utc)
+
+    # Get all threads due for follow-up
+    threads = await db.adjuster_followups.find({
+        "status": "active",
+        "approval_status": "approved",
+        "next_followup_date": {"$lte": now.isoformat()}
+    }).to_list(1000)
+
+    results = []
+
+    for thread in threads:
+        try:
+            # Safety check
+            should_send, reason = await should_send_followup(thread)
+            if not should_send:
+                results.append({
+                    "thread_id": thread["id"],
+                    "status": "skipped",
+                    "reason": reason
+                })
+                continue
+
+            # Generate email
+            company_name = os.environ.get("COMPANY_NAME", "RestorationOS")
+            user = await db.users.find_one({"id": thread.get("created_by")})
+            user_name = user.get("name", "RestorationOS Team") if user else "RestorationOS Team"
+            user_phone = user.get("phone", "") if user else ""
+
+            email_content = generate_escalation_email(thread, company_name, user_name, user_phone)
+
+            # Send email
+            email_sent = await send_email_via_smtp(
+                to_email=thread["adjuster_email"],
+                subject=email_content["subject"],
+                body=email_content["body"]
+            )
+
+            if email_sent:
+                # Update thread
+                followup_count = thread.get("followup_count", 0) + 1
+                next_followup = next_business_day(now, 3)
+
+                escalation_note = {
+                    "date": now.isoformat(),
+                    "followup_number": followup_count,
+                    "days_since_first_contact": calculate_days_since_first_contact(thread["first_contact_date"]),
+                    "days_past_due": calculate_days_past_due(thread["invoice_due_date"]),
+                    "email_sent": True,
+                    "email_sent_at": now.isoformat()
+                }
+
+                # Check if max attempts reached
+                if followup_count >= 10:
+                    status = "escalated_internal"
+                    stop_reason = "max_attempts_reached"
+                else:
+                    status = "active"
+                    stop_reason = None
+
+                await db.adjuster_followups.update_one(
+                    {"id": thread["id"]},
+                    {
+                        "$set": {
+                            "followup_count": followup_count,
+                            "last_followup_date": now.isoformat(),
+                            "next_followup_date": next_followup.isoformat(),
+                            "days_outstanding": escalation_note["days_since_first_contact"],
+                            "status": status,
+                            "stop_reason": stop_reason,
+                            "updated_at": now.isoformat()
+                        },
+                        "$push": {
+                            "escalation_notes": escalation_note
+                        }
+                    }
+                )
+
+                results.append({
+                    "thread_id": thread["id"],
+                    "status": "sent",
+                    "followup_number": followup_count
+                })
+            else:
+                results.append({
+                    "thread_id": thread["id"],
+                    "status": "failed",
+                    "reason": "Email delivery failed"
+                })
+
+        except Exception as e:
+            logger.error(f"Error processing thread {thread['id']}: {str(e)}")
+            results.append({
+                "thread_id": thread["id"],
+                "status": "error",
+                "reason": str(e)
+            })
+
+    return {
+        "processed_at": now.isoformat(),
+        "total_threads": len(threads),
+        "results": results
+    }
 
 # ============ PHOTOS & LOGS ROUTES ============
 

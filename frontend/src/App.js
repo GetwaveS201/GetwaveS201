@@ -105,6 +105,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
     { path: "/daily-logs", icon: ClipboardList, label: "Daily Logs" },
     { path: "/invoices", icon: FileText, label: "Invoices" },
     { path: "/collections", icon: Banknote, label: "Collections" },
+    { path: "/adjuster-followups", icon: Send, label: "Adjuster Follow-Ups" },
     { path: "/accounting", icon: DollarSign, label: "Expenses" },
     { path: "/reports", icon: BarChart3, label: "Reports" },
     { path: "/ai-assistant", icon: MessageSquare, label: "AI Assistant" },
@@ -2813,6 +2814,359 @@ const ReportsPage = () => {
   );
 };
 
+// Adjuster Follow-Up Page
+const AdjusterFollowUpPage = () => {
+  const [pendingThreads, setPendingThreads] = useState([]);
+  const [activeThreads, setActiveThreads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('pending');
+  const [selectedThread, setSelectedThread] = useState(null);
+
+  const loadData = async () => {
+    try {
+      const [pendingRes, activeRes] = await Promise.all([
+        axios.get(`${API}/adjuster-followups/pending-approval`),
+        axios.get(`${API}/adjuster-followups/active`)
+      ]);
+      setPendingThreads(pendingRes.data);
+      setActiveThreads(activeRes.data);
+    } catch (err) {
+      toast.error("Failed to load follow-up data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const approveThread = async (threadId) => {
+    try {
+      await axios.put(`${API}/adjuster-followups/${threadId}/approve`);
+      toast.success("Follow-up approved and activated!");
+      loadData();
+    } catch (err) {
+      toast.error("Failed to approve thread");
+    }
+  };
+
+  const rejectThread = async (threadId) => {
+    try {
+      await axios.put(`${API}/adjuster-followups/${threadId}/reject`);
+      toast.success("Follow-up rejected");
+      loadData();
+    } catch (err) {
+      toast.error("Failed to reject thread");
+    }
+  };
+
+  const pauseThread = async (threadId) => {
+    try {
+      await axios.put(`${API}/adjuster-followups/${threadId}/pause`);
+      toast.success("Follow-up paused");
+      loadData();
+    } catch (err) {
+      toast.error("Failed to pause thread");
+    }
+  };
+
+  const resumeThread = async (threadId) => {
+    try {
+      await axios.put(`${API}/adjuster-followups/${threadId}/resume`);
+      toast.success("Follow-up resumed");
+      loadData();
+    } catch (err) {
+      toast.error("Failed to resume thread");
+    }
+  };
+
+  const sendManualFollowup = async (threadId) => {
+    try {
+      await axios.post(`${API}/adjuster-followups/${threadId}/send`);
+      toast.success("Follow-up email sent!");
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to send follow-up");
+    }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    return new Date(dateStr).toLocaleDateString();
+  };
+
+  const getDaysOutstanding = (firstContactDate) => {
+    const first = new Date(firstContactDate);
+    const now = new Date();
+    return Math.floor((now - first) / (1000 * 60 * 60 * 24));
+  };
+
+  const getStatusBadge = (status) => {
+    const statusColors = {
+      active: 'bg-green-100 text-green-700',
+      paused: 'bg-gray-100 text-gray-700',
+      paid: 'bg-blue-100 text-blue-700',
+      coverage_issued: 'bg-purple-100 text-purple-700',
+      disputed: 'bg-red-100 text-red-700',
+      escalated_internal: 'bg-orange-100 text-orange-700',
+      pending_approval: 'bg-yellow-100 text-yellow-700'
+    };
+    return (
+      <Badge className={statusColors[status] || 'bg-gray-100 text-gray-700'}>
+        {status?.replace(/_/g, ' ').toUpperCase()}
+      </Badge>
+    );
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>;
+
+  return (
+    <div className="space-y-6 animate-fade-in" data-testid="adjuster-followup-page">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Adjuster Follow-Ups</h1>
+          <p className="text-slate-500 mt-1">Automated insurance adjuster email follow-up system</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => loadData()}>
+            <Clock className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-sm font-medium text-yellow-700">Pending Approval</p>
+            <p className="text-2xl font-bold text-yellow-900">{pendingThreads.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-green-50 border-green-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-sm font-medium text-green-700">Active Follow-Ups</p>
+            <p className="text-2xl font-bold text-green-900">{activeThreads.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-sm font-medium text-blue-700">Total Threads</p>
+            <p className="text-2xl font-bold text-blue-900">{pendingThreads.length + activeThreads.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-purple-50 border-purple-200">
+          <CardContent className="p-4 text-center">
+            <p className="text-sm font-medium text-purple-700">Automation Status</p>
+            <p className="text-lg font-bold text-purple-900">ENABLED</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="pending">
+            Pending Approval ({pendingThreads.length})
+          </TabsTrigger>
+          <TabsTrigger value="active">
+            Active Follow-Ups ({activeThreads.length})
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Pending Approval Tab */}
+        <TabsContent value="pending" className="space-y-4">
+          {pendingThreads.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center text-slate-500">
+                <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-500" />
+                <p className="font-medium">No pending approvals</p>
+                <p className="text-sm mt-1">All qualified emails have been reviewed</p>
+              </CardContent>
+            </Card>
+          ) : (
+            pendingThreads.map(thread => (
+              <Card key={thread.id} className="border-l-4 border-l-yellow-500">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          Invoice #{thread.invoice_number}
+                        </h3>
+                        {getStatusBadge(thread.status)}
+                        <Badge variant="outline">{thread.carrier_name}</Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase mb-1">Adjuster</p>
+                          <p className="font-medium">{thread.adjuster_name}</p>
+                          <p className="text-sm text-slate-600">{thread.adjuster_email}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase mb-1">Claim Details</p>
+                          <p className="text-sm">Claim #: {thread.claim_number}</p>
+                          <p className="text-sm">Amount: ${thread.invoice_amount.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase mb-1">Invoice Date</p>
+                          <p className="text-sm">{formatDate(thread.first_contact_date)}</p>
+                          <p className="text-xs text-slate-500">
+                            {getDaysOutstanding(thread.first_contact_date)} days ago
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase mb-1">Due Date</p>
+                          <p className="text-sm">{formatDate(thread.invoice_due_date)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator className="my-4" />
+
+                  <div className="flex gap-2">
+                    <Button
+                      className="bg-green-600 hover:bg-green-700"
+                      onClick={() => approveThread(thread.id)}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Approve & Activate
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => rejectThread(thread.id)}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Reject
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        {/* Active Follow-Ups Tab */}
+        <TabsContent value="active" className="space-y-4">
+          {activeThreads.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center text-slate-500">
+                <AlertCircle className="h-12 w-12 mx-auto mb-3" />
+                <p className="font-medium">No active follow-ups</p>
+                <p className="text-sm mt-1">Approve pending threads to start automation</p>
+              </CardContent>
+            </Card>
+          ) : (
+            activeThreads.map(thread => (
+              <Card key={thread.id} className="border-l-4 border-l-green-500">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-3">
+                        <h3 className="text-lg font-semibold text-slate-900">
+                          Invoice #{thread.invoice_number}
+                        </h3>
+                        {getStatusBadge(thread.status)}
+                        <Badge variant="outline">{thread.carrier_name}</Badge>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase mb-1">Adjuster</p>
+                          <p className="font-medium">{thread.adjuster_name}</p>
+                          <p className="text-sm text-slate-600">{thread.adjuster_email}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase mb-1">Progress</p>
+                          <p className="text-sm">Follow-ups sent: {thread.followup_count}/10</p>
+                          <p className="text-sm">Days outstanding: {getDaysOutstanding(thread.first_contact_date)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase mb-1">Next Follow-Up</p>
+                          <p className="text-sm font-medium">{formatDate(thread.next_followup_date)}</p>
+                          {thread.last_followup_date && (
+                            <p className="text-xs text-slate-500">
+                              Last sent: {formatDate(thread.last_followup_date)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Follow-up history */}
+                      {thread.escalation_notes && thread.escalation_notes.length > 0 && (
+                        <div className="mb-4">
+                          <p className="text-xs text-slate-500 uppercase mb-2">Follow-Up History</p>
+                          <div className="flex gap-2 flex-wrap">
+                            {thread.escalation_notes.map((note, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                #{note.followup_number} - {formatDate(note.date)}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <Separator className="my-4" />
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => sendManualFollowup(thread.id)}
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Send Now
+                    </Button>
+                    {thread.status === 'active' ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => pauseThread(thread.id)}
+                      >
+                        <Clock className="h-4 w-4 mr-2" />
+                        Pause
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => resumeThread(thread.id)}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Resume
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Help Section */}
+      <Card className="bg-slate-50 border-slate-200">
+        <CardContent className="p-6">
+          <div className="flex gap-4">
+            <Shield className="h-8 w-8 text-slate-600 flex-shrink-0" />
+            <div>
+              <h3 className="font-semibold text-slate-900 mb-2">How Adjuster Follow-Ups Work</h3>
+              <ul className="text-sm text-slate-600 space-y-1">
+                <li>✓ Emails from adjusters are automatically qualified based on domain and keywords</li>
+                <li>✓ Qualified emails appear in "Pending Approval" - review and approve to activate</li>
+                <li>✓ Approved threads send follow-ups every 3 business days automatically</li>
+                <li>✓ System stops when payment received, coverage issued, or claim disputed</li>
+                <li>✓ Maximum 10 follow-ups per thread, then escalates internally</li>
+                <li>✓ You can manually pause, resume, or send follow-ups at any time</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 const AIAssistantPage = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2918,6 +3272,7 @@ function App() {
           <Route path="/daily-logs" element={<ProtectedRoute><Layout><DailyLogsPage /></Layout></ProtectedRoute>} />
           <Route path="/invoices" element={<ProtectedRoute><Layout><InvoicesPage /></Layout></ProtectedRoute>} />
           <Route path="/collections" element={<ProtectedRoute><Layout><CollectionsPage /></Layout></ProtectedRoute>} />
+          <Route path="/adjuster-followups" element={<ProtectedRoute><Layout><AdjusterFollowUpPage /></Layout></ProtectedRoute>} />
           <Route path="/work-orders" element={<ProtectedRoute><Layout><WorkOrdersPage /></Layout></ProtectedRoute>} />
           <Route path="/accounting" element={<ProtectedRoute><Layout><AccountingPage /></Layout></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><Layout><ReportsPage /></Layout></ProtectedRoute>} />

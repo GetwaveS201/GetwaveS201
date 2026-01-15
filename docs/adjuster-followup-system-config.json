@@ -1,0 +1,587 @@
+{
+  "system_name": "Insurance Adjuster Follow-Up Automation System",
+  "version": "1.0.0",
+  "created_date": "2026-01-15",
+  "description": "Complete configuration for automated insurance adjuster email follow-up system with progressive escalation, safety controls, and manual approval gates",
+
+  "email_qualification_rules": {
+    "domain_whitelist": {
+      "insurance_carriers": [
+        "allstate.com",
+        "statefarm.com",
+        "progressive.com",
+        "geico.com",
+        "libertymutual.com",
+        "travelers.com",
+        "nationwide.com",
+        "usaa.com",
+        "farmers.com",
+        "americanfamily.com",
+        "safeco.com",
+        "aig.com",
+        "chubb.com",
+        "zurichna.com",
+        "thehartford.com"
+      ],
+      "tpas": [
+        "crawco.com",
+        "sedgwick.com",
+        "gallagherbasket",
+        "corvel.com",
+        "tristargroup.com",
+        "york-intl.com",
+        "esis.com",
+        "broadspire.com"
+      ],
+      "adjuster_firms": [
+        "eberl.com",
+        "enservio.com",
+        "verisk.com",
+        "haag.com"
+      ]
+    },
+    "required_keywords": [
+      "invoice",
+      "payment",
+      "billing",
+      "mitigation",
+      "estimate",
+      "scope",
+      "supplement",
+      "approval"
+    ],
+    "exclusion_criteria": {
+      "auto_replies": true,
+      "cc_only_emails": true,
+      "internal_emails": true,
+      "marketing_newsletters": true
+    },
+    "qualification_flow": [
+      {
+        "step": 1,
+        "name": "Domain Verification",
+        "action": "Check if sender domain matches whitelist",
+        "pass_condition": "Domain found in carriers, TPAs, or adjuster firms list",
+        "fail_action": "Reject and log as non-qualifying"
+      },
+      {
+        "step": 2,
+        "name": "Content Analysis",
+        "action": "Search email subject and body for billing keywords",
+        "pass_condition": "At least one keyword found",
+        "fail_action": "Reject and log as non-billable"
+      },
+      {
+        "step": 3,
+        "name": "Message Type Filter",
+        "action": "Verify email is direct (TO: field) and not auto-reply",
+        "pass_condition": "Direct email from human sender",
+        "fail_action": "Reject and log as excluded type"
+      },
+      {
+        "step": 4,
+        "name": "Manual Approval Gate",
+        "action": "Wait for user to approve",
+        "pass_condition": "User clicks 'Approve & Activate'",
+        "fail_action": "Remain in pending queue or reject if user declines"
+      }
+    ]
+  },
+
+  "follow_up_schedule": {
+    "initial_delay_days": 3,
+    "recurring_interval_days": 3,
+    "business_days_only": true,
+    "max_attempts": 10,
+    "holidays_2026": [
+      "2026-01-01",
+      "2026-05-25",
+      "2026-07-03",
+      "2026-07-04",
+      "2026-09-07",
+      "2026-11-26",
+      "2026-12-25"
+    ],
+    "schedule_table": [
+      {
+        "followup_number": 1,
+        "days_since_first_contact": 3,
+        "escalation_level": "Gentle reminder"
+      },
+      {
+        "followup_number": 2,
+        "days_since_first_contact": 6,
+        "escalation_level": "Professional nudge"
+      },
+      {
+        "followup_number": 3,
+        "days_since_first_contact": 9,
+        "escalation_level": "Accountability focus"
+      },
+      {
+        "followup_number": 4,
+        "days_since_first_contact": 12,
+        "escalation_level": "Escalation implied"
+      },
+      {
+        "followup_number": 5,
+        "days_since_first_contact": 15,
+        "escalation_level": "Supervisory review hinted"
+      },
+      {
+        "followup_number": 6,
+        "days_since_first_contact": 18,
+        "escalation_level": "Maximum pressure"
+      },
+      {
+        "followup_number": 7,
+        "days_since_first_contact": 21,
+        "escalation_level": "Maximum pressure"
+      },
+      {
+        "followup_number": 8,
+        "days_since_first_contact": 24,
+        "escalation_level": "Maximum pressure"
+      },
+      {
+        "followup_number": 9,
+        "days_since_first_contact": 27,
+        "escalation_level": "Maximum pressure"
+      },
+      {
+        "followup_number": 10,
+        "days_since_first_contact": 30,
+        "escalation_level": "Final automated attempt"
+      }
+    ]
+  },
+
+  "email_template": {
+    "unified_escalation_message": {
+      "subject": "Claim Billing Status Required – Invoice #{{invoice_number}}",
+      "body_template": "Hello {{adjuster_name}},\n\nWe are following up regarding the invoice referenced below.\n\nServices were completed and invoiced {{days_since_first_contact}} days ago, and this account remains open with no payment or formal coverage position issued. Multiple follow-ups have been sent without response, and we need clear direction to close this file.\n\n{{#if days_past_due}}This invoice is now {{days_past_due}} days past due.{{/if}}\n\nIf additional documentation is required, please advise immediately. If the file requires reassignment or supervisory review, please confirm so we can coordinate accordingly.\n\nAbsent a response, this matter will be escalated internally to ensure timely resolution. Our preference is to resolve this directly and close the claim professionally.\n\nPlease confirm status or next steps by end of business day.\n\nThank you,\n{{user_name}}\n{{company_name}}\n{{user_phone}}\n\n---\nReference Information:\nClaim #: {{claim_number}}\nInvoice #: {{invoice_number}}\nInvoice Amount: ${{invoice_amount}}\nInvoice Due Date: {{invoice_due_date}}\nCarrier: {{carrier_name}}",
+      "progressive_pressure_note": "The same message is used for all follow-ups. The weight increases naturally as the adjuster sees repeated identical messages without responding.",
+      "tone_rules": [
+        "Professional and calm at all times",
+        "Firm but never aggressive",
+        "Business-owner mindset",
+        "Never apologetic",
+        "Never threatening",
+        "No legal language",
+        "No emotional wording"
+      ]
+    }
+  },
+
+  "stop_conditions": {
+    "automatic_triggers": [
+      {
+        "condition": "payment_received",
+        "detection_method": "Payment logged in invoice payments table",
+        "action": "Set status to 'paid', stop all automation, send thank you email"
+      },
+      {
+        "condition": "coverage_position_issued",
+        "detection_method": "Communication log entry with type 'coverage_position'",
+        "action": "Set status to 'coverage_issued', stop automation, alert user"
+      },
+      {
+        "condition": "dispute_flagged",
+        "detection_method": "Email reply contains keywords: 'dispute', 'disagree', 'incorrect', 'not covered'",
+        "action": "Set status to 'disputed', stop automation, urgent alert to user"
+      },
+      {
+        "condition": "manual_pause",
+        "detection_method": "User clicks 'Pause Follow-Ups' button",
+        "action": "Set status to 'paused', skip automation until manually resumed"
+      },
+      {
+        "condition": "max_attempts_reached",
+        "detection_method": "followup_count >= 10",
+        "action": "Set status to 'escalated_internal', notify management for manual review"
+      }
+    ],
+    "safety_checks": [
+      {
+        "check": "status_verification",
+        "description": "Never send if status is: paid, coverage_issued, disputed, paused"
+      },
+      {
+        "check": "approval_verification",
+        "description": "Only send if approval_status == 'approved'"
+      },
+      {
+        "check": "timing_verification",
+        "description": "Must be at least 3 business days since last follow-up"
+      },
+      {
+        "check": "business_day_verification",
+        "description": "Skip weekends and US holidays"
+      },
+      {
+        "check": "invoice_status_verification",
+        "description": "Verify invoice not already marked as paid in system"
+      }
+    ]
+  },
+
+  "data_structure": {
+    "database": "MongoDB",
+    "collection_name": "adjuster_followups",
+    "schema": {
+      "id": "string (UUID)",
+      "email_message_id": "string (Gmail/Outlook message ID)",
+      "thread_id": "string (Email thread ID)",
+      "job_id": "string (ObjectId reference)",
+      "invoice_id": "string (ObjectId reference)",
+      "claim_number": "string",
+      "adjuster_name": "string",
+      "adjuster_email": "string (EmailStr)",
+      "carrier_name": "string",
+      "invoice_number": "string",
+      "invoice_amount": "float",
+      "invoice_due_date": "string (ISO datetime)",
+      "first_contact_date": "string (ISO datetime)",
+      "last_followup_date": "string (ISO datetime, nullable)",
+      "next_followup_date": "string (ISO datetime)",
+      "followup_count": "integer",
+      "days_outstanding": "integer",
+      "status": "string (enum: pending_approval, active, paused, paid, coverage_issued, disputed, escalated_internal)",
+      "approval_status": "string (enum: pending_approval, approved, rejected)",
+      "approved_by": "string (user_id, nullable)",
+      "approved_at": "string (ISO datetime, nullable)",
+      "stop_reason": "string (nullable)",
+      "escalation_notes": "array of objects",
+      "created_at": "string (ISO datetime)",
+      "created_by": "string (user_id)",
+      "updated_at": "string (ISO datetime)"
+    },
+    "indexes": [
+      "status",
+      "approval_status",
+      "next_followup_date"
+    ]
+  },
+
+  "api_endpoints": {
+    "base_url": "/api/adjuster-followups",
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/qualify",
+        "description": "Qualify an email for follow-up based on business rules",
+        "auth_required": false,
+        "request_body": "EmailQualificationRequest",
+        "response": "EmailQualificationResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "description": "Create a new adjuster follow-up thread",
+        "auth_required": true,
+        "request_body": "AdjusterFollowUpCreate",
+        "response": "Follow-up thread object"
+      },
+      {
+        "method": "GET",
+        "path": "/pending-approval",
+        "description": "Get all threads awaiting manual approval",
+        "auth_required": true,
+        "response": "Array of follow-up threads"
+      },
+      {
+        "method": "GET",
+        "path": "/active",
+        "description": "Get all active follow-up threads",
+        "auth_required": true,
+        "response": "Array of follow-up threads"
+      },
+      {
+        "method": "GET",
+        "path": "/{followup_id}",
+        "description": "Get a specific follow-up thread",
+        "auth_required": true,
+        "response": "Follow-up thread object"
+      },
+      {
+        "method": "PUT",
+        "path": "/{followup_id}/approve",
+        "description": "Approve a thread to activate automation",
+        "auth_required": true,
+        "response": "Success message"
+      },
+      {
+        "method": "PUT",
+        "path": "/{followup_id}/reject",
+        "description": "Reject a thread (will not be automated)",
+        "auth_required": true,
+        "response": "Success message"
+      },
+      {
+        "method": "PUT",
+        "path": "/{followup_id}/pause",
+        "description": "Pause automation for a thread",
+        "auth_required": true,
+        "response": "Success message"
+      },
+      {
+        "method": "PUT",
+        "path": "/{followup_id}/resume",
+        "description": "Resume automation for a paused thread",
+        "auth_required": true,
+        "response": "Success message"
+      },
+      {
+        "method": "POST",
+        "path": "/{followup_id}/send",
+        "description": "Manually trigger a follow-up email",
+        "auth_required": true,
+        "response": "Success message with next follow-up date"
+      },
+      {
+        "method": "POST",
+        "path": "/run-scheduler",
+        "description": "Automated scheduler endpoint (called by cron daily)",
+        "auth_required": false,
+        "response": "Scheduler execution results"
+      }
+    ]
+  },
+
+  "automation_integration": {
+    "platforms_supported": [
+      "n8n",
+      "Make (Integromat)",
+      "Zapier"
+    ],
+    "email_providers": [
+      "Gmail (via Gmail API)",
+      "Outlook (via Microsoft Graph API)"
+    ],
+    "cron_schedule": {
+      "frequency": "Daily at 8:00 AM",
+      "days": "Monday-Friday only",
+      "command": "curl -X POST https://api.restorationos.com/api/adjuster-followups/run-scheduler"
+    },
+    "email_service_integration": {
+      "recommended_services": [
+        "SendGrid",
+        "Mailgun",
+        "AWS SES"
+      ],
+      "environment_variables": [
+        "SMTP_FROM_EMAIL",
+        "COMPANY_NAME",
+        "COMPANY_PHONE",
+        "SENDGRID_API_KEY (optional)",
+        "MAILGUN_API_KEY (optional)",
+        "MAILGUN_DOMAIN (optional)"
+      ]
+    }
+  },
+
+  "implementation_phases": {
+    "phase_1": {
+      "name": "Backend Core",
+      "duration": "Week 1",
+      "tasks": [
+        "Create MongoDB collection and indexes",
+        "Implement Pydantic models",
+        "Build API endpoints",
+        "Create email qualification engine",
+        "Implement business day calculator",
+        "Build stop condition checker"
+      ],
+      "deliverables": [
+        "Fully functional backend API",
+        "Email qualification system",
+        "Safety mechanisms"
+      ]
+    },
+    "phase_2": {
+      "name": "Frontend UI",
+      "duration": "Week 2",
+      "tasks": [
+        "Build Approval Queue page",
+        "Create Active Follow-Ups dashboard",
+        "Implement Follow-Up History view",
+        "Add navigation menu item",
+        "Create status badges and UI components"
+      ],
+      "deliverables": [
+        "Complete frontend interface",
+        "User approval workflow",
+        "Real-time status tracking"
+      ]
+    },
+    "phase_3": {
+      "name": "Email Platform Integration",
+      "duration": "Week 3",
+      "tasks": [
+        "Set up Gmail API or Outlook Graph API",
+        "Configure n8n/Make/Zapier workflows",
+        "Test email qualification",
+        "Implement email label/category tagging",
+        "Set up email service (SendGrid/Mailgun)"
+      ],
+      "deliverables": [
+        "Automated email ingestion",
+        "Real-time qualification",
+        "Email delivery system"
+      ]
+    },
+    "phase_4": {
+      "name": "Automation Scheduler",
+      "duration": "Week 4",
+      "tasks": [
+        "Set up cron job for daily scheduler",
+        "Test business day logic",
+        "Validate stop conditions",
+        "Run end-to-end testing",
+        "Train team on system usage"
+      ],
+      "deliverables": [
+        "Fully automated daily scheduler",
+        "Complete testing suite",
+        "Team training documentation"
+      ]
+    }
+  },
+
+  "testing_checklist": {
+    "email_qualification": [
+      "Test with 20 real emails (10 qualifying, 10 non-qualifying)",
+      "Verify 100% accuracy on domain matching",
+      "Verify keyword detection on HTML and plain text",
+      "Test auto-reply detection",
+      "Test CC-only exclusion"
+    ],
+    "follow_up_schedule": [
+      "Create test thread with first contact 10 days ago",
+      "Verify business day calculation skips weekends",
+      "Verify holidays are excluded",
+      "Test 3-day interval enforcement"
+    ],
+    "stop_conditions": [
+      "Mark invoice as paid → verify automation stops",
+      "Add 'disputed' keyword in mock reply → verify stops",
+      "Manually pause thread → verify no emails sent",
+      "Reach 10 follow-ups → verify internal escalation"
+    ],
+    "safety_mechanisms": [
+      "Attempt weekend send → should skip",
+      "Attempt send before 3 days → should skip",
+      "Thread with status 'paid' → should reject",
+      "Unapproved thread → should not send"
+    ],
+    "email_delivery": [
+      "Send test escalation email to team",
+      "Verify formatting on mobile and desktop",
+      "Verify all variables populate correctly",
+      "Test with real email service"
+    ]
+  },
+
+  "metrics_and_kpis": {
+    "track_these_metrics": [
+      {
+        "metric": "Average days to payment",
+        "comparison": "Before automation vs After automation"
+      },
+      {
+        "metric": "Follow-up count at payment",
+        "description": "Which follow-up cycle do adjusters typically respond?"
+      },
+      {
+        "metric": "Automation stop reasons",
+        "breakdown": "paid, disputed, coverage_issued, paused, etc."
+      },
+      {
+        "metric": "Email open rates",
+        "note": "If tracking pixels enabled"
+      },
+      {
+        "metric": "Response rate by carrier",
+        "description": "Which carriers respond fastest?"
+      }
+    ],
+    "dashboard_views": [
+      "Active threads by carrier",
+      "Overdue invoices by days outstanding",
+      "Follow-up effectiveness (payment rate by follow-up #)",
+      "Automation health (emails sent, errors, stops)"
+    ]
+  },
+
+  "maintenance_schedule": {
+    "weekly": [
+      "Review pending approval queue",
+      "Check for stuck threads (status not updating)",
+      "Review disputed claims for patterns"
+    ],
+    "monthly": [
+      "Analyze which carriers respond fastest",
+      "Identify carriers requiring different approach",
+      "Update adjuster domain list as needed",
+      "Review escalation message effectiveness"
+    ],
+    "quarterly": [
+      "A/B test message variations",
+      "Review max follow-up limit (raise/lower from 10)",
+      "Assess business day schedule (add/remove holidays)",
+      "Train team on system usage"
+    ]
+  },
+
+  "risk_mitigation": {
+    "blind_automation_prevention": [
+      "Approval gate: No email sends without explicit approval",
+      "Manual override: Pause button available on all threads",
+      "Max attempts: Hard limit at 10 follow-ups (escalate to management)"
+    ],
+    "relationship_protection": [
+      "Tone calibration: Same professional message throughout",
+      "No threats: No legal language or aggressive wording",
+      "Dispute detection: Automatic stop if adjuster pushes back"
+    ],
+    "cash_flow_optimization": [
+      "3-day cycles: Fast enough to maintain pressure, slow enough to allow response",
+      "Progressive pressure: Implicit escalation without burning bridges",
+      "Accountability focus: Message emphasizes need for clear direction, not just payment"
+    ]
+  },
+
+  "compliance_and_legal": {
+    "best_practices": [
+      "Professional communication standards",
+      "No harassment or aggressive language",
+      "Documented approval process",
+      "Audit trail of all follow-ups",
+      "Respect for business relationships"
+    ],
+    "disclaimers": [
+      "System is for legitimate business debt collection only",
+      "Comply with all applicable laws and regulations",
+      "Not legal advice - consult attorney for specific situations",
+      "User is responsible for message content and frequency"
+    ]
+  },
+
+  "support_and_documentation": {
+    "documentation_files": [
+      "/docs/ADJUSTER_FOLLOWUP_SYSTEM.md",
+      "/docs/AUTOMATION_INTEGRATION_GUIDE.md",
+      "/docs/adjuster-followup-system-config.json"
+    ],
+    "backend_files": [
+      "/backend/server.py (lines 299-620 for models and helpers)",
+      "/backend/server.py (lines 1311-1690 for API routes)"
+    ],
+    "frontend_files": [
+      "/frontend/src/App.js (lines 2816-3167 for AdjusterFollowUpPage component)",
+      "/frontend/src/App.js (line 108 for navigation menu)",
+      "/frontend/src/App.js (line 3275 for route)"
+    ],
+    "configuration_reference": "This JSON file"
+  }
+}
