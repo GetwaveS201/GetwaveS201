@@ -2271,6 +2271,14 @@ async def ai_forecast_cashflow(current_user: dict = Depends(get_current_user)):
         "metrics": {"outstanding_invoices": outstanding, "recent_revenue": recent_revenue, "total_expenses": total_expenses, "active_jobs": active_jobs, "pipeline_value": pipeline_value}
     }
 
+# ============ WORKFLOW AUTOMATION ============
+# Import workflow API
+from workflow_api import create_workflow_router
+
+# Create and include workflow router
+workflow_router = create_workflow_router(db=db, security=security, get_current_user=get_current_user)
+api_router.include_router(workflow_router)
+
 # ============ HEALTH CHECK ============
 
 @api_router.get("/")
