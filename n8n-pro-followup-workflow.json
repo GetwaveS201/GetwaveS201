@@ -1,0 +1,528 @@
+{
+  "name": "PRO Follow-up Automation - 10x Better",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger - Daily 9 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "invoices",
+        "options": {
+          "limit": 500
+        },
+        "query": {
+          "status": "sent",
+          "due_date": {
+            "$lt": "={{$now.toISO()}}"
+          },
+          "paid": false
+        }
+      },
+      "id": "query-overdue-invoices",
+      "name": "Get Overdue Invoices",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "invoices",
+        "options": {
+          "limit": 50
+        },
+        "query": {
+          "customer_id": "={{$json.customer_id}}"
+        }
+      },
+      "id": "query-customer-history",
+      "name": "Get Customer Payment History",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": [
+                {
+                  "role": "system",
+                  "content": "You are a predictive analytics expert for payment behavior. Analyze customer payment history and predict likelihood of payment. Return JSON with: payment_likelihood (0-100), expected_response_time (hours), risk_factors (array), recommended_actions (array), confidence_level (0-100), best_contact_time (ISO date), optimal_contact_frequency (days)."
+                },
+                {
+                  "role": "user",
+                  "content": "Analyze this customer payment history and predict behavior: {{$json}}"
+                }
+              ]
+            },
+            {
+              "name": "response_format",
+              "value": {
+                "type": "json_object"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "predict-payment-behavior",
+      "name": "AI: Predict Payment Likelihood",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "🤖 AI-powered behavior prediction - 10x better than basic reminders"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate priority score based on multiple factors\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const json = item.json;\n  const prediction = JSON.parse(json.choices[0].message.content);\n  \n  // Get invoice data from previous nodes\n  const invoice = $node['Get Overdue Invoices'].json;\n  \n  // Calculate days overdue\n  const dueDate = new Date(invoice.due_date);\n  const today = new Date();\n  const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));\n  \n  // Calculate priority score (0-100)\n  let priorityScore = 0;\n  priorityScore += (100 - prediction.payment_likelihood) * 0.4; // 40% weight\n  priorityScore += Math.min(daysOverdue / 90 * 100, 100) * 0.3; // 30% weight\n  priorityScore += Math.min(invoice.total / 10000 * 100, 100) * 0.3; // 30% weight\n  \n  results.push({\n    json: {\n      invoice_id: invoice.invoice_id,\n      customer_id: invoice.customer_id,\n      customer_name: invoice.customer_name,\n      customer_email: invoice.customer_email,\n      invoice_number: invoice.invoice_number,\n      amount: invoice.total,\n      days_overdue: daysOverdue,\n      payment_likelihood: prediction.payment_likelihood,\n      priority_score: Math.round(priorityScore),\n      prediction: prediction,\n      job_id: invoice.job_id\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "calculate-priority",
+      "name": "Calculate Priority Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "notes": "Multi-dimensional priority calculation"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.priority_score}}",
+              "operation": "greaterOrEqual",
+              "value2": "70"
+            }
+          ],
+          "number": [
+            {
+              "value1": "={{$json.days_overdue}}",
+              "operation": "larger",
+              "value2": "30"
+            }
+          ],
+          "combineOperation": "any"
+        }
+      },
+      "id": "filter-high-priority",
+      "name": "Filter Actions Needed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "notes": "Only process high priority cases"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": [
+                {
+                  "role": "system",
+                  "content": "You are a professional payment follow-up specialist for a restoration company. Generate a personalized, professional, and empathetic payment follow-up email. Be firm but understanding. Include specific details about the invoice."
+                },
+                {
+                  "role": "user",
+                  "content": "Generate a payment follow-up email for:\n\nCustomer: {{$json.customer_name}}\nInvoice: {{$json.invoice_number}}\nAmount: ${{$json.amount}}\nDays Overdue: {{$json.days_overdue}}\nPayment Likelihood: {{$json.payment_likelihood}}%\nJob ID: {{$json.job_id}}\n\nAI Insights:\n{{$json.prediction}}\n\nGenerate subject line and email body."
+                }
+              ]
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-followup-message",
+      "name": "AI: Generate Personalized Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "🤖 Context-aware AI message generation"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.priority_score}}",
+              "operation": "larger",
+              "value2": "90"
+            }
+          ],
+          "number": [
+            {
+              "value1": "={{$json.days_overdue}}",
+              "operation": "larger",
+              "value2": "60"
+            }
+          ],
+          "combineOperation": "any"
+        }
+      },
+      "id": "determine-channel",
+      "name": "Determine Communication Channel",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1650, 200],
+      "notes": "Smart routing: urgent → call/SMS, normal → email"
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@restoration.com",
+        "toEmail": "={{$json.customer_email}}",
+        "subject": "Payment Reminder: Invoice #={{$json.invoice_number}}",
+        "text": "={{$json.choices[0].message.content}}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Follow-up Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1850, 300],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@restoration.com",
+        "toEmail": "owner@restoration.com",
+        "subject": "🚨 URGENT: High Priority Payment Follow-up Required",
+        "text": "Critical payment issue detected:\n\nCustomer: {{$json.customer_name}}\nInvoice: {{$json.invoice_number}}\nAmount: ${{$json.amount}}\nDays Overdue: {{$json.days_overdue}}\nPriority Score: {{$json.priority_score}}/100\nPredicted Payment Likelihood: {{$json.payment_likelihood}}%\n\n🎯 AI Recommended Actions:\n{{$json.prediction.recommended_actions}}\n\n⚠️ Risk Factors:\n{{$json.prediction.risk_factors}}\n\nBest Contact Time: {{$json.prediction.best_contact_time}}\n\nImmediate attention required!",
+        "options": {}
+      },
+      "id": "send-urgent-alert",
+      "name": "Send Owner Alert - URGENT",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1850, 100],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP account"
+        }
+      },
+      "notes": "🚨 Alert owner for critical cases"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "communications",
+        "fields": {
+          "job_id": "={{$json.job_id}}",
+          "type": "email",
+          "direction": "outbound",
+          "subject": "Payment Follow-up",
+          "content": "={{$json.choices[0].message.content}}",
+          "timestamp": "={{$now.toISO()}}",
+          "automated": true,
+          "workflow_source": "n8n_pro_followup",
+          "ai_generated": true,
+          "priority_score": "={{$json.priority_score}}",
+          "payment_likelihood": "={{$json.payment_likelihood}}"
+        }
+      },
+      "id": "log-to-communications",
+      "name": "Log to Communications DB",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2050, 200],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      },
+      "notes": "📝 Track all interactions"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "invoices",
+        "updateKey": "invoice_id",
+        "fields": {
+          "next_followup_date": "={{$json.prediction.best_contact_time}}",
+          "last_followup_date": "={{$now.toISO()}}",
+          "payment_likelihood_score": "={{$json.payment_likelihood}}",
+          "priority_score": "={{$json.priority_score}}",
+          "ai_analysis": "={{$json.prediction}}",
+          "followup_count": "={{$json.followup_count + 1 || 1}}"
+        }
+      },
+      "id": "schedule-next-followup",
+      "name": "Schedule Next Follow-up (Adaptive)",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 200],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      },
+      "notes": "🔄 Adaptive scheduling based on AI predictions"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "workflow_logs",
+        "fields": {
+          "workflow_name": "PRO Follow-up Automation",
+          "execution_id": "={{$execution.id}}",
+          "timestamp": "={{$now.toISO()}}",
+          "invoices_processed": "={{$json.count}}",
+          "high_priority_count": "={{$json.high_priority}}",
+          "emails_sent": "={{$json.emails_sent}}",
+          "alerts_sent": "={{$json.alerts_sent}}",
+          "status": "completed"
+        }
+      },
+      "id": "log-execution",
+      "name": "Log Workflow Execution",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2450, 200],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger - Daily 9 AM": {
+      "main": [
+        [
+          {
+            "node": "Get Overdue Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Overdue Invoices": {
+      "main": [
+        [
+          {
+            "node": "Get Customer Payment History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customer Payment History": {
+      "main": [
+        [
+          {
+            "node": "AI: Predict Payment Likelihood",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Predict Payment Likelihood": {
+      "main": [
+        [
+          {
+            "node": "Calculate Priority Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Priority Score": {
+      "main": [
+        [
+          {
+            "node": "Filter Actions Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Actions Needed": {
+      "main": [
+        [
+          {
+            "node": "AI: Generate Personalized Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Generate Personalized Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Determine Communication Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Communications DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Communication Channel": {
+      "main": [
+        [
+          {
+            "node": "Send Owner Alert - URGENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Follow-up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up Email": {
+      "main": [
+        [
+          {
+            "node": "Log to Communications DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Owner Alert - URGENT": {
+      "main": [
+        [
+          {
+            "node": "Log to Communications DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Communications DB": {
+      "main": [
+        [
+          {
+            "node": "Schedule Next Follow-up (Adaptive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Next Follow-up (Adaptive)": {
+      "main": [
+        [
+          {
+            "node": "Log Workflow Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "1",
+      "name": "collections"
+    },
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "2",
+      "name": "ai-powered"
+    },
+    {
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z",
+      "id": "3",
+      "name": "automated"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}

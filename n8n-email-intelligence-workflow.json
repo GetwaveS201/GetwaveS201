@@ -1,0 +1,544 @@
+{
+  "name": "Email Intelligence & Auto-Response - 10x Better",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Check Emails Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "find",
+        "collection": "communications",
+        "options": {
+          "limit": 50
+        },
+        "query": {
+          "type": "email",
+          "direction": "inbound",
+          "processed": false
+        }
+      },
+      "id": "query-unread-emails",
+      "name": "Get Unread Emails",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": [
+                {
+                  "role": "system",
+                  "content": "You are an expert email analyst for a restoration company. Analyze emails and extract structured information. Return JSON with: intent (payment_inquiry, status_update, complaint, request, etc.), urgency (low, medium, high, critical), sentiment (positive, neutral, negative, angry), entities (names, dates, amounts, job IDs, claim numbers), action_items (array), requires_response (boolean), response_deadline (if mentioned), summary (1-2 sentences), category (insurance, customer, vendor, internal), priority_score (0-100)."
+                },
+                {
+                  "role": "user",
+                  "content": "Analyze this email:\n\nFrom: {{$json.from}}\nSubject: {{$json.subject}}\nBody: {{$json.body}}"
+                }
+              ]
+            },
+            {
+              "name": "response_format",
+              "value": {
+                "type": "json_object"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "process-email-ai",
+      "name": "AI: Process Email Intelligence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "🤖 Multi-dimensional AI email analysis"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": [
+                {
+                  "role": "system",
+                  "content": "You are an emotional intelligence expert. Perform deep sentiment analysis. Return JSON with: overall_sentiment (positive, neutral, negative, mixed), sentiment_score (-1.0 to 1.0), emotions (array of detected emotions), tone (professional, casual, aggressive, friendly), urgency_indicators (array of phrases), satisfaction_level (0-100), churn_risk (0-100 risk of losing customer), recommended_response_tone (how to respond)."
+                },
+                {
+                  "role": "user",
+                  "content": "Analyze sentiment of this email:\n\nSubject: {{$json.subject}}\nBody: {{$json.body}}"
+                }
+              ]
+            },
+            {
+              "name": "response_format",
+              "value": {
+                "type": "json_object"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "analyze-sentiment",
+      "name": "AI: Deep Sentiment Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "🤖 Emotional intelligence + churn risk detection"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": [
+                {
+                  "role": "system",
+                  "content": "You are a task extraction expert. Extract all actionable tasks from text. Return JSON with tasks array, each containing: task (clear description), assignee (if mentioned), deadline (if mentioned), priority (low, medium, high, critical), estimated_duration (time estimate), dependencies (any dependencies), category (follow_up, documentation, billing, etc.)."
+                },
+                {
+                  "role": "user",
+                  "content": "Extract tasks from this email:\n\n{{$json.body}}"
+                }
+              ]
+            },
+            {
+              "name": "response_format",
+              "value": {
+                "type": "json_object"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-tasks",
+      "name": "AI: Extract Action Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "🤖 Automatic task extraction"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{JSON.parse($json.choices[0].message.content).churn_risk}}",
+              "operation": "larger",
+              "value2": "70"
+            }
+          ],
+          "string": [
+            {
+              "value1": "={{JSON.parse($json.choices[0].message.content).overall_sentiment}}",
+              "operation": "equals",
+              "value2": "angry"
+            }
+          ],
+          "combineOperation": "any"
+        }
+      },
+      "id": "check-critical-sentiment",
+      "name": "Detect Critical Issues",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "notes": "⚠️ Flag at-risk customers"
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@restoration.com",
+        "toEmail": "manager@restoration.com",
+        "subject": "🚨 URGENT: At-Risk Customer - Immediate Action Required",
+        "text": "Critical customer issue detected:\n\nFrom: {{$json.from}}\nSubject: {{$json.subject}}\n\n📊 Sentiment Analysis:\nSentiment: {{JSON.parse($json.choices[0].message.content).overall_sentiment}}\nChurn Risk: {{JSON.parse($json.choices[0].message.content).churn_risk}}%\nEmotions: {{JSON.parse($json.choices[0].message.content).emotions}}\nSatisfaction: {{JSON.parse($json.choices[0].message.content).satisfaction_level}}%\n\n📝 Email Summary:\n{{$node['AI: Process Email Intelligence'].json.choices[0].message.content.summary}}\n\n💡 Recommended Action:\nResponse Tone: {{JSON.parse($json.choices[0].message.content).recommended_response_tone}}\n\n⏰ Immediate attention required!",
+        "options": {}
+      },
+      "id": "alert-manager",
+      "name": "Alert Manager - Critical Customer",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 100],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP account"
+        }
+      },
+      "notes": "🚨 Immediate escalation"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "communications",
+        "updateKey": "communication_id",
+        "fields": {
+          "priority": "critical",
+          "requires_immediate_response": true,
+          "sentiment_analysis": "={{$json.choices[0].message.content}}",
+          "processed": true,
+          "processed_at": "={{$now.toISO()}}",
+          "ai_flagged": true,
+          "churn_risk": "={{JSON.parse($json.choices[0].message.content).churn_risk}}"
+        }
+      },
+      "id": "route-priority",
+      "name": "Route to Priority Queue",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insertMany",
+        "collection": "work_orders",
+        "fields": "={{JSON.parse($json.choices[0].message.content).tasks}}"
+      },
+      "id": "create-tasks",
+      "name": "Create Tasks from Email",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 400],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      },
+      "notes": "📋 Auto-create work orders"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{JSON.parse($node['AI: Process Email Intelligence'].json.choices[0].message.content).intent}}",
+              "operation": "regex",
+              "value2": "status_update|simple_inquiry"
+            },
+            {
+              "value1": "={{JSON.parse($node['AI: Deep Sentiment Analysis'].json.choices[0].message.content).overall_sentiment}}",
+              "operation": "notEquals",
+              "value2": "negative"
+            }
+          ],
+          "combineOperation": "all"
+        }
+      },
+      "id": "check-auto-respond",
+      "name": "Can Auto-Respond?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 400],
+      "notes": "✅ Only auto-respond to simple, positive queries"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "gpt-4"
+            },
+            {
+              "name": "messages",
+              "value": [
+                {
+                  "role": "system",
+                  "content": "You are a professional customer service representative for a restoration company. Generate an appropriate email response. Be professional, empathetic, clear, and helpful. Address their specific concerns."
+                },
+                {
+                  "role": "user",
+                  "content": "Generate a response to this email:\n\nFrom: {{$node['Get Unread Emails'].json.from}}\nSubject: {{$node['Get Unread Emails'].json.subject}}\nBody: {{$node['Get Unread Emails'].json.body}}\n\nEmail Analysis:\nIntent: {{JSON.parse($node['AI: Process Email Intelligence'].json.choices[0].message.content).intent}}\nSentiment: {{JSON.parse($node['AI: Deep Sentiment Analysis'].json.choices[0].message.content).overall_sentiment}}\nRecommended Tone: {{JSON.parse($node['AI: Deep Sentiment Analysis'].json.choices[0].message.content).recommended_response_tone}}"
+                }
+              ]
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "generate-response",
+      "name": "AI: Generate Smart Auto-Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "🤖 Context-aware auto-response"
+    },
+    {
+      "parameters": {
+        "fromEmail": "support@restoration.com",
+        "toEmail": "={{$node['Get Unread Emails'].json.from}}",
+        "subject": "Re: {{$node['Get Unread Emails'].json.subject}}",
+        "text": "={{$json.choices[0].message.content}}",
+        "options": {}
+      },
+      "id": "send-auto-response",
+      "name": "Send Auto-Response",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 500],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "communications",
+        "updateKey": "communication_id",
+        "fields": {
+          "processed": true,
+          "processed_at": "={{$now.toISO()}}",
+          "auto_responded": true,
+          "response_sent": "={{$json.choices[0].message.content}}",
+          "ai_analysis": "={{$node['AI: Process Email Intelligence'].json.choices[0].message.content}}"
+        }
+      },
+      "id": "log-auto-response",
+      "name": "Log Auto-Response",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1850, 500],
+      "credentials": {
+        "mongoDb": {
+          "id": "1",
+          "name": "MongoDB account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Check Emails Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Unread Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Unread Emails": {
+      "main": [
+        [
+          {
+            "node": "AI: Process Email Intelligence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Process Email Intelligence": {
+      "main": [
+        [
+          {
+            "node": "AI: Deep Sentiment Analysis",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI: Extract Action Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Deep Sentiment Analysis": {
+      "main": [
+        [
+          {
+            "node": "Detect Critical Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Extract Action Items": {
+      "main": [
+        [
+          {
+            "node": "Create Tasks from Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Critical Issues": {
+      "main": [
+        [
+          {
+            "node": "Alert Manager - Critical Customer",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Route to Priority Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Tasks from Email": {
+      "main": [
+        [
+          {
+            "node": "Can Auto-Respond?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can Auto-Respond?": {
+      "main": [
+        [
+          {
+            "node": "AI: Generate Smart Auto-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Generate Smart Auto-Reply": {
+      "main": [
+        [
+          {
+            "node": "Send Auto-Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Auto-Response": {
+      "main": [
+        [
+          {
+            "node": "Log Auto-Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "1",
+      "name": "email"
+    },
+    {
+      "id": "2",
+      "name": "ai-powered"
+    },
+    {
+      "id": "3",
+      "name": "customer-service"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}
