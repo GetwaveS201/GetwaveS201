@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Logging System - Superior Restoration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .tab-btn.active { background-color: #1e40af; color: white; }
+    pre { white-space: pre-wrap; word-wrap: break-word; }
+    .copy-btn:active { transform: scale(0.95); }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <div class="max-w-5xl mx-auto py-8 px-4">
+
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold text-slate-900">Content Logging & Display System</h1>
+      <p class="text-slate-600 mt-2">Structured logging for invoices, messages, and workflow content</p>
+      <p class="text-sm text-slate-500 mt-1">Superior Restoration & Construction</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div class="flex border-b border-slate-200">
+        <button onclick="showTab('rendered')" class="tab-btn active flex-1 py-3 px-4 text-sm font-medium hover:bg-slate-50 transition-colors">
+          Rendered View
+        </button>
+        <button onclick="showTab('json')" class="tab-btn flex-1 py-3 px-4 text-sm font-medium hover:bg-slate-50 transition-colors">
+          JSON Format
+        </button>
+        <button onclick="showTab('n8n')" class="tab-btn flex-1 py-3 px-4 text-sm font-medium hover:bg-slate-50 transition-colors">
+          n8n Fixes
+        </button>
+        <button onclick="showTab('schema')" class="tab-btn flex-1 py-3 px-4 text-sm font-medium hover:bg-slate-50 transition-colors">
+          Schema Reference
+        </button>
+      </div>
+
+      <!-- Tab: Rendered View -->
+      <div id="rendered" class="tab-content active p-6">
+        <h2 class="text-xl font-semibold text-slate-800 mb-4">Rendered Business Message</h2>
+        <p class="text-slate-600 text-sm mb-6">This is how your invoice reminder appears when rendered on the front end.</p>
+
+        <!-- Rendered Message Card -->
+        <div class="max-w-2xl mx-auto bg-white border border-slate-200 rounded-xl shadow-md overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full">Invoice Follow-up</span>
+              <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">friendly</span>
+            </div>
+            <span class="text-xs text-slate-500">Jan 27, 2026, 10:30 AM</span>
+          </div>
+
+          <div class="p-6">
+            <h3 class="font-semibold text-lg text-slate-900 mb-4">Payment Reminder - Invoice INV-1047</h3>
+
+            <p class="text-slate-700 mb-4">Hello,</p>
+
+            <p class="text-slate-700 mb-4">This is a friendly reminder regarding the invoice below, which is now past due.</p>
+
+            <!-- Invoice Details Box -->
+            <div class="bg-slate-50 rounded-lg p-4 border border-slate-200 my-6">
+              <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Invoice Details</h4>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <span class="text-xs text-slate-500 block">Invoice #</span>
+                  <span class="font-mono font-semibold text-slate-900">INV-1047</span>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500 block">Invoice Date</span>
+                  <span class="text-slate-900">January 3, 2026</span>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500 block">Amount Due</span>
+                  <span class="font-semibold text-lg text-slate-900">$8,450.00</span>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500 block">Due Date</span>
+                  <span class="text-slate-900">January 17, 2026</span>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-slate-700 mb-4">Please let us know when payment is scheduled, or if there's anything needed from us to release payment.</p>
+
+            <p class="text-slate-700 mb-6">If payment has already been sent, thank you.</p>
+
+            <!-- Signature -->
+            <div class="pt-4 border-t border-slate-200">
+              <p class="font-medium text-slate-900">Christian</p>
+              <p class="text-slate-600">Superior Restoration & Construction</p>
+              <p class="text-slate-600 font-mono text-sm">808-555-0199</p>
+              <p class="text-blue-600 text-sm">billing@superiorrestorationhi.com</p>
+            </div>
+          </div>
+
+          <div class="px-6 py-3 bg-slate-50 border-t border-slate-100">
+            <span class="text-xs text-slate-500 font-mono">log_1706400000000_abc123def</span>
+            <span class="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">Sent</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: JSON Format -->
+      <div id="json" class="tab-content p-6">
+        <h2 class="text-xl font-semibold text-slate-800 mb-4">JSON Log Format</h2>
+        <p class="text-slate-600 text-sm mb-6">This is the JSON structure logged to Google Sheets or your database.</p>
+
+        <div class="space-y-6">
+          <!-- Invoice Follow-up JSON -->
+          <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <span class="font-medium text-slate-700">Invoice Follow-up Log Entry</span>
+              <button onclick="copyToClipboard('json-followup')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+                Copy JSON
+              </button>
+            </div>
+            <pre id="json-followup" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto">{
+  "id": "log_1706400000000_abc123def",
+  "type": "invoice_followup",
+  "timestamp": "2026-01-27T10:30:00.000Z",
+  "metadata": {
+    "invoice_id": "INV-1047",
+    "invoice_number": "INV-1047",
+    "customer_name": "ABC Insurance Company",
+    "payer_name": "ABC Insurance Company",
+    "days_outstanding": 10,
+    "balance_due": 8450.00
+  },
+  "content": {
+    "subject": "Payment Reminder - Invoice INV-1047",
+    "body": "Hello,\n\nThis is a friendly reminder regarding the invoice below, which is now past due.\n\nInvoice #: INV-1047\nInvoice Date: January 3, 2026\nAmount Due: $8,450.00\nDue Date: January 17, 2026\n\nPlease let us know when payment is scheduled, or if there's anything needed from us to release payment.\n\nIf payment has already been sent, thank you.\n\nChristian\nSuperior Restoration & Construction\n808-555-0199\nbilling@superiorrestorationhi.com",
+    "tone": "friendly"
+  },
+  "status": {
+    "sent": true,
+    "logged": true,
+    "error": null
+  }
+}</pre>
+          </div>
+
+          <!-- Google Sheets Row Format -->
+          <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <span class="font-medium text-slate-700">Google Sheets Row Format (for n8n logging)</span>
+              <button onclick="copyToClipboard('json-sheets')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+                Copy JSON
+              </button>
+            </div>
+            <pre id="json-sheets" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto">{
+  "date": "2026-01-27",
+  "invoice_id": "INV-1047",
+  "payer_name": "ABC Insurance Company",
+  "email_subject": "Payment Reminder - Invoice INV-1047",
+  "email_body": "Hello,\n\nThis is a friendly reminder regarding the invoice below...",
+  "days_outstanding": 10,
+  "balance_due": 8450.00,
+  "tone": "friendly",
+  "log_id": "log_1706400000000_abc123",
+  "status": "pending",
+  "parse_error": false
+}</pre>
+          </div>
+
+          <!-- All Content Types -->
+          <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+              <span class="font-medium text-slate-700">All Content Type Examples</span>
+              <button onclick="copyToClipboard('json-all')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+                Copy JSON
+              </button>
+            </div>
+            <pre id="json-all" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto max-h-96">{
+  "invoice_followup": {
+    "date": "2026-01-27",
+    "invoice_id": "INV-1047",
+    "payer_name": "ABC Insurance Company",
+    "email_subject": "Payment Reminder - Invoice INV-1047",
+    "email_body": "Hello,\n\nThis is a friendly reminder...",
+    "days_outstanding": 10,
+    "balance_due": 8450.00,
+    "tone": "friendly",
+    "log_id": "log_1706400000000_abc123",
+    "parse_error": false
+  },
+
+  "owner_alert": {
+    "date": "2026-01-27T10:30:00.000Z",
+    "invoice_id": "INV-1032",
+    "customer_name": "State Farm Insurance",
+    "days_outstanding": 75,
+    "balance_due": 12500.00,
+    "subject": "URGENT: Invoice INV-1032 - 75 Days Outstanding",
+    "body": "Critical attention required...",
+    "alert_type": "owner_alert",
+    "priority": "urgent",
+    "log_id": "oa_1706400000000_xyz789",
+    "parse_error": false
+  },
+
+  "silence_breaker": {
+    "date": "2026-01-27T09:00:00.000Z",
+    "payer_name": "Allstate Insurance",
+    "days_since_contact": 21,
+    "email_subject": "Response Required - Invoice INV-1089",
+    "email_body": "We've attempted to reach you multiple times...",
+    "invoice_id": "INV-1089",
+    "balance_due": 5200.00,
+    "log_id": "sb_1706400000000_def456",
+    "type": "silence_breaker",
+    "parse_error": false
+  },
+
+  "task": {
+    "date": "2026-01-27T08:45:00.000Z",
+    "task": "Send completion photos to Allstate adjuster",
+    "priority": "high",
+    "deadline": "2026-01-28",
+    "category": "documentation",
+    "source_email": "adjuster@allstate.com",
+    "log_id": "task_1706400000000_ghi789",
+    "status": "pending",
+    "parse_error": false
+  },
+
+  "auto_reply": {
+    "date": "2026-01-27T10:15:00.000Z",
+    "email_from": "claims@statefarm.com",
+    "original_subject": "Invoice Query - INV-1055",
+    "reply_subject": "RE: Invoice Query - INV-1055",
+    "reply_body": "Mahalo for reaching out...",
+    "send_reply": true,
+    "reason": "Invoice inquiry requires acknowledgment",
+    "log_id": "ar_1706400000000_jkl012",
+    "parse_error": false
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: n8n Fixes -->
+      <div id="n8n" class="tab-content p-6">
+        <h2 class="text-xl font-semibold text-slate-800 mb-2">n8n Parsing Fixes</h2>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <p class="text-amber-800 font-medium">The Issue:</p>
+          <p class="text-amber-700 text-sm mt-1">Your AI models return <code class="bg-amber-100 px-1 rounded">{subject, body, tone}</code> but your parsing nodes expected <code class="bg-amber-100 px-1 rounded">{email_subject, email_body}</code>.</p>
+        </div>
+
+        <p class="text-slate-600 text-sm mb-6">Copy these corrected code blocks into your n8n workflow nodes:</p>
+
+        <!-- Parse Follow-up Response -->
+        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden mb-6">
+          <div class="px-4 py-2 bg-blue-50 border-b border-slate-200 flex justify-between items-center">
+            <span class="font-medium text-blue-800">Parse Follow-up Response</span>
+            <button onclick="copyToClipboard('n8n-followup')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+              Copy Code
+            </button>
+          </div>
+          <pre id="n8n-followup" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto max-h-80">// Extract the AI response content
+const response = $json.message?.content || $json.choices?.[0]?.message?.content || $json.text || '';
+
+// Clean markdown code blocks if present
+let cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+// Get source data from previous node
+const sourceData = $('Track Payer Behavior').first().json;
+
+try {
+  const parsed = JSON.parse(cleaned);
+
+  return {
+    json: {
+      // Log entry fields for Google Sheets
+      date: new Date().toISOString().split('T')[0],
+      invoice_id: sourceData.invoice_id || '',
+      payer_name: sourceData.payer_name || sourceData.customer_name || '',
+      // Map AI response fields to expected sheet columns
+      email_subject: parsed.subject || '',
+      email_body: parsed.body || '',
+      days_outstanding: sourceData.days_outstanding || '',
+      balance_due: sourceData.balance_due || '',
+      tone: parsed.tone || '',
+      // Additional structured data for tracking
+      log_id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      status: 'pending',
+      parse_error: false
+    }
+  };
+} catch (error) {
+  // Fallback if JSON parsing fails
+  return {
+    json: {
+      date: new Date().toISOString().split('T')[0],
+      invoice_id: sourceData.invoice_id || '',
+      payer_name: sourceData.payer_name || sourceData.customer_name || '',
+      email_subject: 'Payment Reminder - Invoice ' + (sourceData.invoice_id || 'Unknown'),
+      email_body: cleaned,
+      days_outstanding: sourceData.days_outstanding || '',
+      balance_due: sourceData.balance_due || '',
+      tone: 'professional',
+      log_id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      status: 'pending',
+      parse_error: true,
+      error_message: error.message
+    }
+  };
+}</pre>
+        </div>
+
+        <!-- Parse Silence-Breaker Response -->
+        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden mb-6">
+          <div class="px-4 py-2 bg-orange-50 border-b border-slate-200 flex justify-between items-center">
+            <span class="font-medium text-orange-800">Parse Silence-Breaker Response</span>
+            <button onclick="copyToClipboard('n8n-silence')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+              Copy Code
+            </button>
+          </div>
+          <pre id="n8n-silence" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto max-h-80">// Extract the AI response content
+const response = $json.message?.content || $json.choices?.[0]?.message?.content || $json.text || '';
+
+// Clean markdown code blocks if present
+let cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+// Get source data from Silence-Breaker Engine
+const sourceData = $('Silence-Breaker Engine').first().json;
+
+try {
+  const parsed = JSON.parse(cleaned);
+
+  return {
+    json: {
+      date: new Date().toISOString(),
+      payer_name: sourceData.payer_name || sourceData.customer_name || '',
+      days_since_contact: sourceData.days_since_contact || '',
+      // Map AI response fields correctly
+      email_subject: parsed.subject || 'Response Required - Outstanding Invoice',
+      email_body: parsed.body || '',
+      invoice_id: sourceData.invoice_id || '',
+      balance_due: sourceData.balance_due || '',
+      log_id: 'sb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      type: 'silence_breaker',
+      parse_error: false
+    }
+  };
+} catch (error) {
+  return {
+    json: {
+      date: new Date().toISOString(),
+      payer_name: sourceData.payer_name || sourceData.customer_name || '',
+      days_since_contact: sourceData.days_since_contact || '',
+      email_subject: 'Checking In',
+      email_body: cleaned,
+      invoice_id: sourceData.invoice_id || '',
+      balance_due: sourceData.balance_due || '',
+      log_id: 'sb_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      type: 'silence_breaker',
+      parse_error: true,
+      error_message: error.message
+    }
+  };
+}</pre>
+        </div>
+
+        <!-- Parse Auto-Reply Response -->
+        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden mb-6">
+          <div class="px-4 py-2 bg-green-50 border-b border-slate-200 flex justify-between items-center">
+            <span class="font-medium text-green-800">Parse Auto-Reply Response</span>
+            <button onclick="copyToClipboard('n8n-reply')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+              Copy Code
+            </button>
+          </div>
+          <pre id="n8n-reply" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto max-h-80">// Extract the AI response content
+const response = $json.message?.content || $json.choices?.[0]?.message?.content || $json.text || '';
+
+// Clean markdown code blocks if present
+let cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+// Get source data from email processing
+const sourceData = $('Filter - Email Actions Needed').first().json;
+
+try {
+  const parsed = JSON.parse(cleaned);
+
+  // Check if AI decided not to send a reply
+  if (parsed.send_reply === false) {
+    return {
+      json: {
+        date: new Date().toISOString(),
+        email_from: sourceData.from || '',
+        original_subject: sourceData.subject || '',
+        reply_subject: null,
+        reply_body: null,
+        send_reply: false,
+        reason: parsed.reason || 'No reply needed',
+        log_id: 'ar_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        type: 'auto_reply',
+        parse_error: false
+      }
+    };
+  }
+
+  return {
+    json: {
+      date: new Date().toISOString(),
+      email_from: sourceData.from || '',
+      original_subject: sourceData.subject || '',
+      // Map correctly - AI uses reply_subject/reply_body OR subject/body
+      reply_subject: parsed.reply_subject || parsed.subject || ('RE: ' + sourceData.subject),
+      reply_body: parsed.reply_body || parsed.body || '',
+      send_reply: parsed.send_reply !== false,
+      reason: parsed.reason || '',
+      log_id: 'ar_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      type: 'auto_reply',
+      parse_error: false
+    }
+  };
+} catch (error) {
+  return {
+    json: {
+      date: new Date().toISOString(),
+      email_from: sourceData.from || '',
+      original_subject: sourceData.subject || '',
+      reply_subject: 'RE: ' + (sourceData.subject || ''),
+      reply_body: cleaned,
+      send_reply: true,
+      reason: 'Parse error - using raw response',
+      log_id: 'ar_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      type: 'auto_reply',
+      parse_error: true,
+      error_message: error.message
+    }
+  };
+}</pre>
+        </div>
+
+        <!-- Parse Owner Alert Response -->
+        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden mb-6">
+          <div class="px-4 py-2 bg-red-50 border-b border-slate-200 flex justify-between items-center">
+            <span class="font-medium text-red-800">Parse Owner Alert Response</span>
+            <button onclick="copyToClipboard('n8n-owner')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+              Copy Code
+            </button>
+          </div>
+          <pre id="n8n-owner" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto max-h-80">// Extract the AI response content
+const response = $json.message?.content || $json.choices?.[0]?.message?.content || $json.text || '';
+
+// Clean markdown code blocks if present
+let cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+// Get source data
+const sourceData = $('Track Payer Behavior').first().json;
+
+try {
+  const parsed = JSON.parse(cleaned);
+
+  return {
+    json: {
+      date: new Date().toISOString(),
+      invoice_id: sourceData.invoice_id || '',
+      customer_name: sourceData.customer_name || '',
+      days_outstanding: sourceData.days_outstanding || '',
+      balance_due: sourceData.balance_due || '',
+      subject: parsed.subject || 'URGENT: Invoice Requires Attention',
+      body: parsed.body || 'Please review this invoice immediately.',
+      alert_type: 'owner_alert',
+      priority: 'urgent',
+      log_id: 'oa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      parse_error: false
+    }
+  };
+} catch (error) {
+  return {
+    json: {
+      date: new Date().toISOString(),
+      invoice_id: sourceData.invoice_id || '',
+      customer_name: sourceData.customer_name || '',
+      days_outstanding: sourceData.days_outstanding || '',
+      balance_due: sourceData.balance_due || '',
+      subject: 'URGENT: Invoice Requires Attention',
+      body: cleaned,
+      alert_type: 'owner_alert',
+      priority: 'urgent',
+      log_id: 'oa_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      parse_error: true,
+      error_message: error.message
+    }
+  };
+}</pre>
+        </div>
+
+        <!-- Parse Tasks Response -->
+        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+          <div class="px-4 py-2 bg-purple-50 border-b border-slate-200 flex justify-between items-center">
+            <span class="font-medium text-purple-800">Parse Tasks Response</span>
+            <button onclick="copyToClipboard('n8n-tasks')" class="copy-btn px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+              Copy Code
+            </button>
+          </div>
+          <pre id="n8n-tasks" class="bg-slate-900 text-slate-100 p-4 text-sm overflow-x-auto max-h-80">// Extract the AI response content
+const response = $json.message?.content || $json.choices?.[0]?.message?.content || $json.text || '';
+
+// Clean markdown code blocks if present
+let cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+// Get source email data
+const sourceData = $('Process Emails + Intelligence').first().json;
+
+try {
+  const parsed = JSON.parse(cleaned);
+
+  if (!parsed.tasks || !Array.isArray(parsed.tasks) || parsed.tasks.length === 0) {
+    return [{
+      json: {
+        no_tasks: true,
+        source_email: sourceData.from || '',
+        processed_at: new Date().toISOString()
+      }
+    }];
+  }
+
+  return parsed.tasks.map(task => ({
+    json: {
+      date: new Date().toISOString(),
+      task: task.task || '',
+      priority: task.priority || 'medium',
+      deadline: task.deadline || 'none',
+      category: task.category || 'general',
+      source_email: sourceData.from || '',
+      source_subject: sourceData.subject || '',
+      log_id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+      status: 'pending',
+      type: 'task',
+      parse_error: false
+    }
+  }));
+} catch (error) {
+  return [{
+    json: {
+      no_tasks: true,
+      parse_error: true,
+      error_message: error.message,
+      source_email: sourceData.from || '',
+      processed_at: new Date().toISOString()
+    }
+  }];
+}</pre>
+        </div>
+      </div>
+
+      <!-- Tab: Schema Reference -->
+      <div id="schema" class="tab-content p-6">
+        <h2 class="text-xl font-semibold text-slate-800 mb-4">Schema Reference</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Content Types -->
+          <div class="bg-white border border-slate-200 rounded-lg p-4">
+            <h3 class="font-semibold text-slate-800 mb-3">Content Types</h3>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">invoice_followup</code>
+                <span class="text-xs text-slate-500">Payment reminders</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">owner_alert</code>
+                <span class="text-xs text-slate-500">Critical invoices</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">silence_breaker</code>
+                <span class="text-xs text-slate-500">Non-responsive payers</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">auto_reply</code>
+                <span class="text-xs text-slate-500">Automated responses</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">task</code>
+                <span class="text-xs text-slate-500">Extracted tasks</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">adjuster_draft</code>
+                <span class="text-xs text-slate-500">Adjuster communications</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tone Levels -->
+          <div class="bg-white border border-slate-200 rounded-lg p-4">
+            <h3 class="font-semibold text-slate-800 mb-3">Tone Levels (Escalation)</h3>
+            <div class="space-y-2">
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full w-24 text-center">friendly</span>
+                <span class="text-xs text-slate-500">30-45 days overdue</span>
+              </div>
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full w-24 text-center">professional</span>
+                <span class="text-xs text-slate-500">Standard follow-up</span>
+              </div>
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full w-24 text-center">firm</span>
+                <span class="text-xs text-slate-500">46-60 days overdue</span>
+              </div>
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full w-24 text-center">urgent</span>
+                <span class="text-xs text-slate-500">61-90 days overdue</span>
+              </div>
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full w-24 text-center">final</span>
+                <span class="text-xs text-slate-500">90+ days / collections</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Priority Levels -->
+          <div class="bg-white border border-slate-200 rounded-lg p-4">
+            <h3 class="font-semibold text-slate-800 mb-3">Priority Levels</h3>
+            <div class="space-y-2">
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full w-20 text-center">low</span>
+                <span class="text-xs text-slate-500">Future commitments (>7 days)</span>
+              </div>
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full w-20 text-center">medium</span>
+                <span class="text-xs text-slate-500">Routine requests</span>
+              </div>
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full w-20 text-center">high</span>
+                <span class="text-xs text-slate-500">Payment confirmations</span>
+              </div>
+              <div class="flex items-center gap-3 py-1">
+                <span class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full w-20 text-center">urgent</span>
+                <span class="text-xs text-slate-500">Claim denials, disputes</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Task Categories -->
+          <div class="bg-white border border-slate-200 rounded-lg p-4">
+            <h3 class="font-semibold text-slate-800 mb-3">Task Categories</h3>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">payment</code>
+                <span class="text-xs text-slate-500">Payment-related</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">adjuster</code>
+                <span class="text-xs text-slate-500">Adjuster coordination</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">customer</code>
+                <span class="text-xs text-slate-500">Customer service</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">documentation</code>
+                <span class="text-xs text-slate-500">Document requests</span>
+              </div>
+              <div class="flex items-center justify-between py-1">
+                <code class="text-sm bg-slate-100 px-2 py-1 rounded">internal</code>
+                <span class="text-xs text-slate-500">Internal escalation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Google Sheets Columns -->
+        <div class="mt-6 bg-white border border-slate-200 rounded-lg p-4">
+          <h3 class="font-semibold text-slate-800 mb-3">Google Sheets Column Mapping</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50">
+                  <th class="text-left px-3 py-2 font-medium text-slate-600">Column</th>
+                  <th class="text-left px-3 py-2 font-medium text-slate-600">Type</th>
+                  <th class="text-left px-3 py-2 font-medium text-slate-600">Description</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr><td class="px-3 py-2 font-mono text-xs">date</td><td class="px-3 py-2">string</td><td class="px-3 py-2 text-slate-500">ISO date or YYYY-MM-DD</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">invoice_id</td><td class="px-3 py-2">string</td><td class="px-3 py-2 text-slate-500">Invoice identifier</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">payer_name</td><td class="px-3 py-2">string</td><td class="px-3 py-2 text-slate-500">Customer/insurance company</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">email_subject</td><td class="px-3 py-2">string</td><td class="px-3 py-2 text-slate-500">Email subject line</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">email_body</td><td class="px-3 py-2">string</td><td class="px-3 py-2 text-slate-500">Full email content</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">days_outstanding</td><td class="px-3 py-2">number</td><td class="px-3 py-2 text-slate-500">Days since invoice</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">balance_due</td><td class="px-3 py-2">number</td><td class="px-3 py-2 text-slate-500">Amount owed</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">tone</td><td class="px-3 py-2">string</td><td class="px-3 py-2 text-slate-500">Escalation tone level</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">log_id</td><td class="px-3 py-2">string</td><td class="px-3 py-2 text-slate-500">Unique identifier</td></tr>
+                <tr><td class="px-3 py-2 font-mono text-xs">parse_error</td><td class="px-3 py-2">boolean</td><td class="px-3 py-2 text-slate-500">True if parsing failed</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center mt-8 text-sm text-slate-500">
+      <p>Content Logging System for Superior Restoration & Construction</p>
+      <p class="mt-1">Generated: <span id="gen-date"></span></p>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    function showTab(tabId) {
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      // Show selected tab
+      document.getElementById(tabId).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Copy to clipboard
+    function copyToClipboard(elementId) {
+      const element = document.getElementById(elementId);
+      const text = element.textContent;
+
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('bg-green-600');
+        btn.classList.remove('bg-blue-600');
+
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('bg-green-600');
+          btn.classList.add('bg-blue-600');
+        }, 2000);
+      });
+    }
+
+    // Set generated date
+    document.getElementById('gen-date').textContent = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  </script>
+</body>
+</html>
